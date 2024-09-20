@@ -54,8 +54,21 @@ Run it on a file to modify it:
 
 Djade implements some rules listed in the Django contribution style guide’s `template style section <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__:
 
-* One space around variables and tags: ``{{ egg }}`` and ``{% crack egg %}``.
+* One space around variables and tags:
 
-It also implements some extra rules:
+  .. code-block:: diff
 
-* One space around comment tags: ``{# buttery #}``.
+      -{{egg}}
+      +{{ egg }}
+
+      -{%  crack egg  %}
+      +{% crack egg %}
+
+Djade also implements some extra rules:
+
+* One space around comment tags:
+
+  .. code-block:: diff
+
+    -{#egg#}
+    +{# egg #}
