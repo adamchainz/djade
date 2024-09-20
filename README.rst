@@ -18,6 +18,11 @@ djade
    :target: https://github.com/pre-commit/pre-commit
    :alt: pre-commit
 
+.. figure:: logo.svg
+   :alt: Any color you like, as long as it’s jade.
+
+..
+
 Django template formatter.
 
 ----
