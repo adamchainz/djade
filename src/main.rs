@@ -169,14 +169,8 @@ fn format(content: &str) -> String {
     // Lex
     let mut tokens = lex(content);
 
-    // Token-level mutations
-    for token in &mut tokens {
-        if token.token_type == TokenType::BLOCK && token.contents.starts_with("load ") {
-            let mut parts: Vec<&str> = token.contents.split_whitespace().collect();
-            parts[1..].sort();
-            token.contents = parts.join(" ");
-        }
-    }
+    // Token-fixing passes
+    merge_load_tags(&mut tokens);
 
     // Build result
     let mut result = String::new();
@@ -201,6 +195,35 @@ fn format(content: &str) -> String {
         }
     }
     result
+}
+
+fn merge_load_tags(tokens: &mut Vec<Token>) {
+    let mut i = 0;
+    while i < tokens.len() {
+        if tokens[i].token_type == TokenType::BLOCK && tokens[i].contents.starts_with("load ") {
+            let mut j = i + 1;
+            let mut to_merge = vec![i];
+            while j < tokens.len() {
+                match tokens[j].token_type {
+                    TokenType::TEXT if tokens[j].contents.trim().is_empty() => j += 1,
+                    TokenType::BLOCK if tokens[j].contents.starts_with("load ") => {
+                        to_merge.push(j);
+                        j += 1;
+                    }
+                    _ => break,
+                }
+            }
+            let mut parts = Vec::new();
+            for &idx in &to_merge {
+                parts.extend(tokens[idx].contents.split_whitespace().skip(1));
+            }
+            parts.sort_unstable();
+            parts.dedup();
+            tokens[i].contents = format!("load {}", parts.join(" "));
+            tokens.drain(i + 1..j);
+        }
+        i += 1;
+    }
 }
 
 #[cfg(test)]
@@ -237,6 +260,24 @@ mod tests {
     #[test]
     fn test_format_load_whitespace_cleaned() {
         let formatted = format("{% load   x  y %}");
+        assert_eq!(formatted, "{% load x y %}");
+    }
+
+    #[test]
+    fn test_format_load_consecutive_merged() {
+        let formatted = format("{% load x %}{% load y %}");
+        assert_eq!(formatted, "{% load x y %}");
+    }
+
+    #[test]
+    fn test_format_load_consecutive_space_merged() {
+        let formatted = format("{% load x %} {% load y %}");
+        assert_eq!(formatted, "{% load x y %}");
+    }
+
+    #[test]
+    fn test_format_load_consecutive_newline_merged() {
+        let formatted = format("{% load x %}\n{% load y %}");
         assert_eq!(formatted, "{% load x y %}");
     }
 }

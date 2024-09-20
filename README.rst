@@ -79,3 +79,12 @@ Djade also implements some extra rules:
 
     -{#egg#}
     +{# egg #}
+
+* Merge consecutive ``{% load %}`` tags:
+
+  .. code-block:: diff
+
+      -{% load omelette %}
+      -
+      -{% load frittata %}
+      +{% load frittata omelette %}
