@@ -25,3 +25,14 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
+      with:
+        enable-cache: true
+
+    - name: Install
+      run: uv pip install --system .
+
+    - name: Check built command line
+      run: djade --help
