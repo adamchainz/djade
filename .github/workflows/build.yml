@@ -7,44 +7,226 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  sdist:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+
+      - name: Test sdist
+        run: |
+          pip install dist/*.tar.gz --force-reinstall
+          djade --help
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  macos-x86_64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          architecture: x64
+
+      - name: Build wheels - x86_64
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --locked --out dist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-x86_64
+          path: dist
+
+  macos-aarch64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          architecture: arm64
+
+      - name: Build wheels - aarch64
+        uses: PyO3/maturin-action@v1
+        with:
+          target: aarch64
+          args: --release --locked --out dist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-aarch64-apple-darwin
+          path: dist
+
+  windows:
+    runs-on: windows-2022
     strategy:
       matrix:
-        os:
-        - ubuntu-24.04
-        - windows-2022
-        - macos-14
+        platform:
+          - target: x86_64-pc-windows-msvc
+            arch: x64
+          - target: i686-pc-windows-msvc
+            arch: x86
+          - target: aarch64-pc-windows-msvc
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
 
-    env:
-      CIBW_ARCHS_LINUX: x86_64 i686 aarch64
-      CIBW_ARCHS_MACOS: x86_64 universal2
-      CIBW_ARCHS_WINDOWS: AMD64 x86 ARM64
-      CIBW_BUILD: "cp38-*"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          architecture: ${{ matrix.platform.arch }}
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --locked --out dist
+        env:
+          # aarch64 build fails, see https://github.com/PyO3/maturin/issues/2110
+          XWIN_VERSION: 16
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform.target }}
+          path: dist
+
+  linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - i686-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          architecture: x64
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --locked --out dist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.target }}
+          path: dist
+
+  linux-cross:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        platform:
+          - target: aarch64-unknown-linux-gnu
+            arch: aarch64
+          - target: armv7-unknown-linux-gnueabihf
+            arch: armv7
+          - target: arm-unknown-linux-musleabihf
+            arch: arm
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-
-      - name: Install cibuildwheel
-        run: |
-          python -m pip install cibuildwheel==2.20.0
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: all
+          python-version: '3.8'
 
       - name: Build wheels
-        run: |
-          python -m cibuildwheel --output-dir wheelhouse
-
-      - uses: actions/upload-artifact@v4
+        uses: PyO3/maturin-action@v1
         with:
-          name: wheels-${{ matrix.os }}
-          path: '${{ github.workspace }}/wheelhouse/*.whl'
+          target: ${{ matrix.platform.target }}
+          manylinux: auto
+          docker-options: ${{ matrix.platform.maturin_docker_options }}
+          args: --release --locked --out dist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform.target }}
+          path: dist
+
+  musllinux:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-musl
+          - i686-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          architecture: x64
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: musllinux_1_2
+          args: --release --locked --out dist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.target }}
+          path: dist
+
+  musllinux-cross:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        platform:
+          - target: aarch64-unknown-linux-musl
+            arch: aarch64
+          - target: armv7-unknown-linux-musleabihf
+            arch: armv7
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          manylinux: musllinux_1_2
+          args: --release --locked --out dist
+          docker-options: ${{ matrix.platform.maturin_docker_options }}
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform.target }}
+          path: dist
