@@ -11,11 +11,7 @@ fn main() {
     let mut changed = false;
     for filename in &args.filenames {
         let content = fs::read_to_string(filename).expect("Could not open {file}");
-
-        let tokens = lex(&content);
-        // call format and write result back into file
-        let formatted = format(&tokens);
-
+        let formatted = format(&content);
         if formatted != content {
             println!("Rewriting {}", filename);
             changed = true;
@@ -25,7 +21,7 @@ fn main() {
     std::process::exit(if changed { 1 } else { 0 });
 }
 
-// Lexer based on a Rust translation of Django’s lexer per:
+// Lexer based on Django’s:
 // https://github.com/django/django/blob/main/django/template/base.py
 
 static TAG_RE: OnceLock<Regex> = OnceLock::new();
@@ -169,7 +165,8 @@ fn create_token(
     }
 }
 
-fn format(tokens: &[Token]) -> String {
+fn format(content: &str) -> String {
+    let tokens = lex(content);
     let mut result = String::new();
     for token in tokens {
         match token.token_type {
@@ -199,42 +196,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_lex_and_format() {
-        let input =
-            "Text {{ var }} {% block %} {# comment #} {% verbatim %} {{ raw }} {% endverbatim %}";
-        let tokens = lex(input);
-        let formatted = format(&tokens);
-        assert_eq!(formatted, input);
+    fn test_format_spaces_added() {
+        let formatted = format("a {{var}} {%tag%} {#comment#}");
+        assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}");
     }
 
     #[test]
-    fn test_create_token() {
-        let mut verbatim = None;
-        assert_eq!(
-            create_token("text", (0, 4), 1, false, &mut verbatim).token_type,
-            TokenType::TEXT
-        );
-        assert_eq!(
-            create_token("{{ var }}", (0, 9), 1, true, &mut verbatim).token_type,
-            TokenType::VAR
-        );
-        assert_eq!(
-            create_token("{% block %}", (0, 11), 1, true, &mut verbatim).token_type,
-            TokenType::BLOCK
-        );
-        assert_eq!(
-            create_token("{# comment #}", (0, 13), 1, true, &mut verbatim).token_type,
-            TokenType::COMMENT
-        );
+    fn test_format_spaces_removed() {
+        let formatted = format("a {{  var  }} {%  tag  %} {#  comment  #}");
+        assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}");
+    }
 
-        verbatim = Some("endverbatim".to_string());
+    #[test]
+    fn test_format_verbatim_left() {
+        let formatted = format("a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}");
         assert_eq!(
-            create_token("{% verbatim %}", (0, 14), 1, true, &mut verbatim).token_type,
-            TokenType::TEXT
-        );
-        assert_eq!(
-            create_token("{% endverbatim %}", (0, 16), 1, true, &mut verbatim).token_type,
-            TokenType::BLOCK
+            formatted,
+            "a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}"
         );
     }
 }
