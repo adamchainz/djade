@@ -64,6 +64,13 @@ Djade implements some rules listed in the Django contribution style guide’s `t
       -{%  crack egg  %}
       +{% crack egg %}
 
+* In ``{% load %}`` tags, alphabetically sort libraries:
+
+  .. code-block:: diff
+
+      -{% load omelette frittata %}
+      +{% load friattata omelette %}
+
 Djade also implements some extra rules:
 
 * One space around comment tags:
