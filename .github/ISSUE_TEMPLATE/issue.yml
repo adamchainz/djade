@@ -1,0 +1,18 @@
+name: Issue
+description: File an issue
+body:
+- type: input
+  id: package_version
+  attributes:
+    label: Package Version
+    description: Which version of this package were you using? If not the latest version, please check this issue has not since been resolved.
+    placeholder: 1.0.0
+  validations:
+    required: false
+- type: textarea
+  id: description
+  attributes:
+    label: Description
+    description: Please describe your issue.
+  validations:
+    required: true
