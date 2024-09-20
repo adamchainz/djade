@@ -22,8 +22,14 @@ jobs:
       CIBW_ARCHS_MACOS: x86_64 universal2
       CIBW_ARCHS_WINDOWS: AMD64 x86 ARM64
       CIBW_BUILD: "cp38-*"
+      # Rust does not provide Cargo for musllinux 32-bit, so that needs to be skipped”
+      # https://cibuildwheel.pypa.io/en/stable/faq/#building-rust-wheels
+      CIBW_SKIP: "*-musllinux_i686"
+      # Set up Rust where needed
+      # https://cibuildwheel.pypa.io/en/stable/faq/#building-rust-wheels
       CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
       CIBW_BEFORE_ALL_MACOS: rustup target add x86_64-apple-darwin
+      CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
       CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
 
     steps:
