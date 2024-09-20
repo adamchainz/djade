@@ -32,7 +32,7 @@ mod tests {
     fn test_help_option() {
         let mut app = Args::command();
         let help_output = app.render_help().to_string();
-        assert!(help_output.contains("djade: a Django template formatter"));
+        assert!(help_output.contains("A Django template formatter."));
         assert!(help_output.contains("Usage: djade <FILENAMES>..."));
     }
 }
