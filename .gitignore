@@ -1,1 +1,5 @@
-/target
+*.egg-info/
+*.pyc
+/build/
+/dist/
+/target/
