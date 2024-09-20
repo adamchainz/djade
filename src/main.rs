@@ -172,6 +172,7 @@ fn format(content: &str) -> String {
     // Token-fixing passes
     merge_load_tags(&mut tokens);
     fix_endblock_labels(&mut tokens);
+    fix_template_whitespace(&mut tokens);
 
     // Build result
     let mut result = String::new();
@@ -196,6 +197,31 @@ fn format(content: &str) -> String {
         }
     }
     result
+}
+
+fn fix_template_whitespace(tokens: &mut Vec<Token>) {
+    static LEADING_BLANK_LINES: OnceLock<Regex> = OnceLock::new();
+
+    let re = LEADING_BLANK_LINES.get_or_init(|| Regex::new(r"^(\s*\n)+").unwrap());
+
+    if let Some(token) = tokens.first_mut() {
+        if token.token_type == TokenType::TEXT {
+            token.contents = re.replace(&token.contents, "").to_string();
+        }
+    }
+
+    if let Some(token) = tokens.last_mut() {
+        if token.token_type == TokenType::TEXT {
+            token.contents = token.contents.trim_end().to_string() + "\n";
+        } else {
+            tokens.push(Token {
+                token_type: TokenType::TEXT,
+                contents: "\n".to_string(),
+                position: (0, 0),
+                lineno: 0,
+            });
+        }
+    }
 }
 
 fn merge_load_tags(tokens: &mut Vec<Token>) {
@@ -257,87 +283,134 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
 mod tests {
     use super::*;
 
+    // fix_start_end_whitespace
+
     #[test]
-    fn test_format_spaces_added() {
-        let formatted = format("a {{var}} {%tag%} {#comment#}");
-        assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}");
+    fn test_format_trim_leading_whitespace() {
+        let formatted = format("  \n  {% yolk %}\n");
+        assert_eq!(formatted, "  {% yolk %}\n");
     }
 
     #[test]
-    fn test_format_spaces_removed() {
-        let formatted = format("a {{  var  }} {%  tag  %} {#  comment  #}");
-        assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}");
+    fn test_format_trim_trailing_whitespace() {
+        let formatted = format("{% yolk %}  \n  ");
+        assert_eq!(formatted, "{% yolk %}\n");
     }
 
     #[test]
-    fn test_format_verbatim_left() {
-        let formatted = format("a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}");
+    fn test_format_preserve_content_whitespace() {
+        let formatted = format("{% block crack %}\n  Yum  \n{% endblock crack %}");
         assert_eq!(
             formatted,
-            "a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}"
+            "{% block crack %}\n  Yum  \n{% endblock crack %}\n"
         );
     }
 
     #[test]
+    fn test_format_add_trailing_newline() {
+        let formatted = format("{% block crack %}Yum{% endblock %}");
+        assert_eq!(formatted, "{% block crack %}Yum{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_format_whitespace_only_template() {
+        let formatted = format("  \t\n  ");
+        assert_eq!(formatted, "\n");
+    }
+
+    #[test]
+    fn test_format_no_text_tokens() {
+        let formatted = format("{% yolk %}");
+        assert_eq!(formatted, "{% yolk %}\n");
+    }
+
+    // merge_load_tags
+
+    #[test]
     fn test_format_load_sorted() {
-        let formatted = format("{% load z y x %}");
-        assert_eq!(formatted, "{% load x y z %}");
+        let formatted = format("{% load z y x %}\n");
+        assert_eq!(formatted, "{% load x y z %}\n");
     }
 
     #[test]
     fn test_format_load_whitespace_cleaned() {
-        let formatted = format("{% load   x  y %}");
-        assert_eq!(formatted, "{% load x y %}");
+        let formatted = format("{% load   x  y %}\n");
+        assert_eq!(formatted, "{% load x y %}\n");
     }
 
     #[test]
     fn test_format_load_consecutive_merged() {
-        let formatted = format("{% load x %}{% load y %}");
-        assert_eq!(formatted, "{% load x y %}");
+        let formatted = format("{% load x %}{% load y %}\n");
+        assert_eq!(formatted, "{% load x y %}\n");
     }
 
     #[test]
     fn test_format_load_consecutive_space_merged() {
-        let formatted = format("{% load x %} {% load y %}");
-        assert_eq!(formatted, "{% load x y %}");
+        let formatted = format("{% load x %} {% load y %}\n");
+        assert_eq!(formatted, "{% load x y %}\n");
     }
 
     #[test]
     fn test_format_load_consecutive_newline_merged() {
-        let formatted = format("{% load x %}\n{% load y %}");
-        assert_eq!(formatted, "{% load x y %}");
+        let formatted = format("{% load x %}\n{% load y %}\n");
+        assert_eq!(formatted, "{% load x y %}\n");
     }
+
+    // fix_endblock_labels
 
     #[test]
     fn test_format_endblock_broken() {
-        let formatted = format("{% endblock %}");
-        assert_eq!(formatted, "{% endblock %}");
+        let formatted = format("{% endblock %}\n");
+        assert_eq!(formatted, "{% endblock %}\n");
     }
 
     #[test]
     fn test_format_endblock_broken_nesting() {
-        let formatted = format("{% block a %}\n{% endblock b %}");
-        assert_eq!(formatted, "{% block a %}\n{% endblock b %}");
+        let formatted = format("{% block a %}\n{% endblock b %}\n");
+        assert_eq!(formatted, "{% block a %}\n{% endblock b %}\n");
     }
 
     #[test]
     fn test_format_endblock_label_added() {
-        let formatted = format("{% block h %}\n{% endblock %}");
-        assert_eq!(formatted, "{% block h %}\n{% endblock h %}");
+        let formatted = format("{% block h %}\n{% endblock %}\n");
+        assert_eq!(formatted, "{% block h %}\n{% endblock h %}\n");
     }
 
     #[test]
     fn test_format_endblock_label_added_nested() {
-        let formatted = format("{% block h %}\n{% block i %}\n{% endblock %}\n{% endblock %}");
+        let formatted = format("{% block h %}\n{% block i %}\n{% endblock %}\n{% endblock %}\n");
         assert_eq!(
             formatted,
-            "{% block h %}\n{% block i %}\n{% endblock i %}\n{% endblock h %}"
+            "{% block h %}\n{% block i %}\n{% endblock i %}\n{% endblock h %}\n"
         );
     }
 
     #[test]
     fn test_format_endblock_label_removed() {
-        let formatted = format("{% block h %}i{% endblock h %}");
-        assert_eq!(formatted, "{% block h %}i{% endblock %}");
+        let formatted = format("{% block h %}i{% endblock h %}\n");
+        assert_eq!(formatted, "{% block h %}i{% endblock %}\n");
+    }
+
+    // format output phase
+
+    #[test]
+    fn test_format_spaces_added() {
+        let formatted = format("a {{var}} {%tag%} {#comment#}\n");
+        assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}\n");
+    }
+
+    #[test]
+    fn test_format_spaces_removed() {
+        let formatted = format("a {{  var  }} {%  tag  %} {#  comment  #}\n");
+        assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}\n");
+    }
+
+    #[test]
+    fn test_format_verbatim_left() {
+        let formatted = format("a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}\n");
+        assert_eq!(
+            formatted,
+            "a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}\n"
+        );
     }
 }

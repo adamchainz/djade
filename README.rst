@@ -82,6 +82,23 @@ Djade implements some rules listed in the Django contribution style guide’s `t
 
 Djade also implements some extra rules:
 
+* Leading empty lines are removed:
+
+  .. code-block:: diff
+
+      -
+       {% extends 'white.html' %}
+       ...
+
+* Trailing empty lines are removed, and a trailing newline inserted if necessary:
+
+  .. code-block:: diff
+
+       ...
+       {% endblock content %}
+      -
+      -
+
 * One space around comment tags:
 
   .. code-block:: diff
