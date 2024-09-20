@@ -32,7 +32,9 @@ jobs:
         enable-cache: true
 
     - name: Install
-      run: uv pip install --system .
+      run: |
+        uv venv
+        uv pip install --system .
 
     - name: Check built command line
-      run: djade --help
+      run: uv run djade --help
