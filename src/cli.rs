@@ -4,7 +4,7 @@ use clap::Parser;
 #[command(
     author,
     name = "djade",
-    about = "djade: a Django template formatter.",
+    about = "A Django template formatter.",
     version
 )]
 pub struct Args {

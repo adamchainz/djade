@@ -23,7 +23,7 @@ djade
 
 ..
 
-Django template formatter.
+A Django template formatter.
 
 ----
 
@@ -46,9 +46,16 @@ Usage
 =====
 
 ``djade`` is a commandline tool that rewrites files in place.
-
-For example:
+Run it on a file to modify it:
 
 .. code-block:: sh
 
     djade templates/index.html
+
+Djade implements some rules listed in the Django contribution style guide’s `template style section <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__:
+
+* One space around variables and tags: ``{{ egg }}`` and ``{% crack egg %}``.
+
+It also implements some extra rules:
+
+* One space around comment tags: ``{# buttery #}``.

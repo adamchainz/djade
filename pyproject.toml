@@ -5,7 +5,7 @@ requires = [ "maturin>=1,<2" ]
 [project]
 name = "djade"
 version = "0.0.1"
-description = "Django template formatter."
+description = "A Django template formatter."
 readme = "README.rst"
 keywords = [
   "Django",
