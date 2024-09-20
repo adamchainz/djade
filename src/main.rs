@@ -3,40 +3,26 @@ mod cli;
 use clap::Parser;
 use regex::Regex;
 use std::fs;
-use std::io::{self, Read, Write};
 use std::sync::OnceLock;
 
 fn main() {
     let args = cli::Args::parse();
 
-    if args.filenames.is_empty() {
-        eprintln!("Error: No filenames provided");
-        std::process::exit(1);
-    }
-
+    let mut changed = false;
     for filename in &args.filenames {
-        let content = if filename == "-" {
-            let mut buffer = String::new();
-            io::stdin()
-                .read_to_string(&mut buffer)
-                .expect("Failed to read from stdin");
-            buffer
-        } else {
-            fs::read_to_string(filename).expect("Could not read file")
-        };
+        let content = fs::read_to_string(filename).expect("Could not open {file}");
 
         let tokens = lex(&content);
         // call format and write result back into file
         let formatted = format(&tokens);
 
-        if filename == "-" {
-            io::stdout()
-                .write_all(formatted.as_bytes())
-                .expect("Failed to write to stdout");
-        } else {
-            fs::write(filename, formatted).expect("Could not write file");
+        if formatted != content {
+            println!("Rewriting {}", filename);
+            changed = true;
+            fs::write(filename, formatted).expect("Could not write {filename}");
         }
     }
+    std::process::exit(if changed { 1 } else { 0 });
 }
 
 // Lexer based on a Rust translation of Django’s lexer per:
