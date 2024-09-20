@@ -166,7 +166,19 @@ fn create_token(
 }
 
 fn format(content: &str) -> String {
-    let tokens = lex(content);
+    // Lex
+    let mut tokens = lex(content);
+
+    // Token-level mutations
+    for token in &mut tokens {
+        if token.token_type == TokenType::BLOCK && token.contents.starts_with("load ") {
+            let mut parts: Vec<&str> = token.contents.split_whitespace().collect();
+            parts[1..].sort();
+            token.contents = parts.join(" ");
+        }
+    }
+
+    // Build result
     let mut result = String::new();
     for token in tokens {
         match token.token_type {
@@ -214,5 +226,17 @@ mod tests {
             formatted,
             "a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}"
         );
+    }
+
+    #[test]
+    fn test_format_load_sorted() {
+        let formatted = format("{% load z y x %}");
+        assert_eq!(formatted, "{% load x y z %}");
+    }
+
+    #[test]
+    fn test_format_load_whitespace_cleaned() {
+        let formatted = format("{% load   x  y %}");
+        assert_eq!(formatted, "{% load x y %}");
     }
 }
