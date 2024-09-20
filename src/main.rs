@@ -264,7 +264,9 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
             if tokens[i].contents.starts_with("block ") {
                 let label = tokens[i].contents.split_whitespace().nth(1).unwrap_or("");
                 block_stack.push((i, label.to_string()));
-            } else if tokens[i].contents.starts_with("endblock") {
+            } else if tokens[i].contents == "endblock"
+                || tokens[i].contents.starts_with("endblock ")
+            {
                 if let Some((start, label)) = block_stack.pop() {
                     let parts: Vec<&str> = tokens[i].contents.split_whitespace().collect();
                     if parts.len() == 1 || (parts.len() == 2 && parts[1] == label) {
@@ -398,6 +400,17 @@ mod tests {
     fn test_format_endblock_label_removed() {
         let formatted = format("{% block h %}i{% endblock h %}\n");
         assert_eq!(formatted, "{% block h %}i{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_format_endblock_with_blocktranslate() {
+        let formatted = format(
+            "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock %}\n",
+        );
+        assert_eq!(
+            formatted,
+            "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock h %}\n"
+        );
     }
 
     // format output phase
