@@ -18,7 +18,7 @@ djade
    :target: https://github.com/pre-commit/pre-commit
    :alt: pre-commit
 
-.. figure:: logo.svg
+.. figure:: https://raw.githubusercontent.com/adamchainz/djade/main/logo.svg
    :alt: Any color you like, as long as it’s jade.
 
 ..
