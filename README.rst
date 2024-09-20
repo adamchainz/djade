@@ -64,6 +64,15 @@ Djade implements some rules listed in the Django contribution style guide’s `t
       -{%  crack egg  %}
       +{% crack egg %}
 
+* Add labels to ``{% endblock %}`` tags that aren’t on the same line as their opening ``{% block %}`` tag:
+
+  .. code-block:: diff
+
+       {% block shell %}
+       ...
+      -{% endblock %}
+      +{% endblock shell %}
+
 * In ``{% load %}`` tags, alphabetically sort libraries:
 
   .. code-block:: diff
@@ -79,6 +88,13 @@ Djade also implements some extra rules:
 
     -{#egg#}
     +{# egg #}
+
+* Remove labels from ``{% endblock %}`` tags on the same line as their opening ``{% block %}`` tag:
+
+  .. code-block:: diff
+
+      -{% block shell %}...{% endblock shell %}
+      +{% block shell %}...{% endblock %}
 
 * Merge consecutive ``{% load %}`` tags:
 

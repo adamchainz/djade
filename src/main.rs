@@ -171,6 +171,7 @@ fn format(content: &str) -> String {
 
     // Token-fixing passes
     merge_load_tags(&mut tokens);
+    fix_endblock_labels(&mut tokens);
 
     // Build result
     let mut result = String::new();
@@ -221,6 +222,32 @@ fn merge_load_tags(tokens: &mut Vec<Token>) {
             parts.dedup();
             tokens[i].contents = format!("load {}", parts.join(" "));
             tokens.drain(i + 1..j);
+        }
+        i += 1;
+    }
+}
+
+fn fix_endblock_labels(tokens: &mut Vec<Token>) {
+    let mut block_stack = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        if tokens[i].token_type == TokenType::BLOCK {
+            if tokens[i].contents.starts_with("block ") {
+                let label = tokens[i].contents.split_whitespace().nth(1).unwrap_or("");
+                block_stack.push((i, label.to_string()));
+            } else if tokens[i].contents.starts_with("endblock") {
+                if let Some((start, label)) = block_stack.pop() {
+                    let parts: Vec<&str> = tokens[i].contents.split_whitespace().collect();
+                    if parts.len() == 1 || (parts.len() == 2 && parts[1] == label) {
+                        let same_line = tokens[start].lineno == tokens[i].lineno;
+                        tokens[i].contents = if same_line {
+                            "endblock".to_string()
+                        } else {
+                            format!("endblock {}", label)
+                        };
+                    }
+                }
+            }
         }
         i += 1;
     }
@@ -279,5 +306,38 @@ mod tests {
     fn test_format_load_consecutive_newline_merged() {
         let formatted = format("{% load x %}\n{% load y %}");
         assert_eq!(formatted, "{% load x y %}");
+    }
+
+    #[test]
+    fn test_format_endblock_broken() {
+        let formatted = format("{% endblock %}");
+        assert_eq!(formatted, "{% endblock %}");
+    }
+
+    #[test]
+    fn test_format_endblock_broken_nesting() {
+        let formatted = format("{% block a %}\n{% endblock b %}");
+        assert_eq!(formatted, "{% block a %}\n{% endblock b %}");
+    }
+
+    #[test]
+    fn test_format_endblock_label_added() {
+        let formatted = format("{% block h %}\n{% endblock %}");
+        assert_eq!(formatted, "{% block h %}\n{% endblock h %}");
+    }
+
+    #[test]
+    fn test_format_endblock_label_added_nested() {
+        let formatted = format("{% block h %}\n{% block i %}\n{% endblock %}\n{% endblock %}");
+        assert_eq!(
+            formatted,
+            "{% block h %}\n{% block i %}\n{% endblock i %}\n{% endblock h %}"
+        );
+    }
+
+    #[test]
+    fn test_format_endblock_label_removed() {
+        let formatted = format("{% block h %}i{% endblock h %}");
+        assert_eq!(formatted, "{% block h %}i{% endblock %}");
     }
 }
