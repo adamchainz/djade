@@ -240,6 +240,9 @@ fn merge_load_tags(tokens: &mut Vec<Token>) {
                     _ => break,
                 }
             }
+            if tokens[j - 1].token_type == TokenType::TEXT {
+                j -= 1;
+            }
             let mut parts = Vec::new();
             for &idx in &to_merge {
                 parts.extend(tokens[idx].contents.split_whitespace().skip(1));
@@ -354,6 +357,12 @@ mod tests {
     fn test_format_load_consecutive_newline_merged() {
         let formatted = format("{% load x %}\n{% load y %}\n");
         assert_eq!(formatted, "{% load x y %}\n");
+    }
+
+    #[test]
+    fn test_format_load_trailing_empty_lines_left() {
+        let formatted = format("{% load albumen %}\n\n{% albu %}\n");
+        assert_eq!(formatted, "{% load albumen %}\n\n{% albu %}\n");
     }
 
     // fix_endblock_labels
