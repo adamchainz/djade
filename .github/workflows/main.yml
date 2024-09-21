@@ -119,6 +119,7 @@ jobs:
     environment: release
 
     permissions:
+      contents: read
       id-token: write
 
     steps:
