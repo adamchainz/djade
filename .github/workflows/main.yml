@@ -90,7 +90,7 @@ jobs:
         (matrix.os == 'linux' && 'ubuntu-24.04') ||
         (matrix.os == 'macos' && 'macos-14') ||
         (matrix.os == 'windows' && 'windows-2022') ||
-        unknown
+        'unknown'
       }}
     steps:
     - uses: actions/checkout@v4
