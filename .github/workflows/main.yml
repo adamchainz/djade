@@ -57,10 +57,6 @@ jobs:
             target: i686
           - os: linux
             target: armv7
-          - os: linux
-            target: ppc64le
-          - os: linux
-            target: s390x
 
           # musllinux
           - os: linux
@@ -98,7 +94,7 @@ jobs:
     - name: set up python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.12'
         architecture: ${{ matrix.python-architecture || 'x64' }}
 
     - name: build sdist
@@ -113,8 +109,7 @@ jobs:
       with:
         target: ${{ matrix.target }}
         manylinux: ${{ matrix.manylinux || 'auto' }}
-        args: --release --out dist
-        docker-options: -e CI
+        args: --release --locked --out dist
 
     - run: ${{ (matrix.os == 'windows' && 'dir') || 'ls -lh' }} dist/
 
