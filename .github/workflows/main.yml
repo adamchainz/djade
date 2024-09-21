@@ -85,20 +85,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: set up python
-      uses: actions/setup-python@v5
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
         architecture: ${{ matrix.python-architecture || 'x64' }}
 
-    - name: build sdist
+    - name: Build sdist
       if: ${{ matrix.os == 'linux' && matrix.target == 'x86_64' }}
       uses: PyO3/maturin-action@v1
       with:
         command: sdist
         args: --out dist
 
-    - name: build wheels
+    - name: Build wheels
       uses: PyO3/maturin-action@v1
       with:
         target: ${{ matrix.target }}
