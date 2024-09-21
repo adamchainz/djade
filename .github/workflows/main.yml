@@ -4,6 +4,8 @@ on:
   push:
     branches:
     - main
+    tags:
+    - '**'
   pull_request:
 
 concurrency:
@@ -36,3 +38,105 @@ jobs:
         uv venv --python 3.12
         uv pip install .
         uv run djade --help
+
+  build:
+    name: Build os=${{ matrix.os }} target=${{ matrix.target }} ml=${{ matrix.manylinux || 'auto' }}
+    if: >
+      startsWith(github.ref, 'refs/tags/') ||
+      github.ref == 'refs/heads/main' ||
+      contains(github.event.pull_request.labels.*.name, 'Build')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            target: x86_64
+          - os: linux
+            target: aarch64
+          - os: linux
+            target: i686
+          - os: linux
+            target: armv7
+
+          # musllinux
+          - os: linux
+            manylinux: musllinux_1_1
+            target: x86_64
+          - os: linux
+            manylinux: musllinux_1_1
+            target: aarch64
+
+          # macos
+          - os: macos
+            target: x86_64
+          - os: macos
+            target: aarch64
+
+          # windows
+          - os: windows
+            target: x86_64
+          - os: windows
+            target: i686
+            python-architecture: x86
+          - os: windows
+            target: aarch64
+
+    runs-on: ${{ (matrix.os == 'linux' && 'ubuntu-24.04') || (matrix.os == 'macos' && 'macos-14') || (matrix.os == 'windows' && 'windows-2022') || 'unknown' }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        architecture: ${{ matrix.python-architecture || 'x64' }}
+
+    - name: Build sdist
+      if: ${{ matrix.os == 'linux' && matrix.target == 'x86_64' }}
+      uses: PyO3/maturin-action@v1
+      with:
+        command: sdist
+        args: --out dist
+
+    - name: Build wheels
+      uses: PyO3/maturin-action@v1
+      with:
+        target: ${{ matrix.target }}
+        manylinux: ${{ matrix.manylinux || 'auto' }}
+        args: --release --locked --out dist
+
+    - run: ${{ (matrix.os == 'windows' && 'dir') || 'ls -lh' }} dist/
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.manylinux || 'auto' }}
+        path: dist
+
+  release:
+    needs: [tests, build]
+    if: success() && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    environment: release
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: get dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          pattern: dist-*
+          path: dist
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          enable-cache: true
+
+      - name: Verify dist files
+        run: uvx twine check dist/*
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
