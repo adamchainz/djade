@@ -113,8 +113,7 @@ jobs:
 
   release:
     needs: [tests, build]
-    if: success()
-    # if: success() && startsWith(github.ref, 'refs/tags/')
+    if: success() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     environment: release
 
@@ -132,8 +131,6 @@ jobs:
           pattern: dist-*
           path: dist
 
-      - run: ls -lh dist
-
       - name: Install uv
         uses: astral-sh/setup-uv@v1
         with:
@@ -142,4 +139,4 @@ jobs:
       - name: Verify dist files
         run: uvx twine check dist/*
 
-      # - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@release/v1
