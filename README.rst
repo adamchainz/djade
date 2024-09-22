@@ -205,7 +205,7 @@ Djade also implements some extra rules:
 
 * Unindent ``{% extends %}`` tags:
 
-.. code-block:: diff
+  .. code-block:: diff
 
-    -  {% extends 'egg.html' %}
-    +{% extends 'egg.html' %}
+      -  {% extends 'egg.html' %}
+      +{% extends 'egg.html' %}
