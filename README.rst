@@ -55,9 +55,10 @@ You can also install django-upgrade as a `pre-commit <https://pre-commit.com/>`_
 .. code-block:: yaml
 
     -   repo: https://github.com/adamchainz/djade-pre-commit
-        rev: ""  # replace with latest tag on GitHub
+        rev: ""  # Replace with the latest tag on GitHub
         hooks:
         -   id: djade
+            args: [--target-version, "5.1"]  # Replace with Django version
 
 The separate repository is used to enable installation without compiling the Rust code.
 
@@ -89,11 +90,12 @@ Usage
 =====
 
 ``djade`` is a commandline tool that rewrites files in place.
-Run it on one or more files to modify them if necessary:
+Pass your Django version as ``<major>.<minor>`` to the ``--target-version`` flag and a list of template files.
+Djade will format and update the templates as necessary:
 
 .. code-block:: console
 
-    $ djade templates/index.html
+    $ djade --target-version 5.1 templates/index.html
     Rewriting templates/index.html
 
 Djade does not have any ability to recurse through directories.
@@ -115,6 +117,18 @@ __ https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core
 .. code-block:: powershell
 
     git ls-files -- '*.py' | %{djade $_}
+
+Options
+=======
+
+``--target-version``
+--------------------
+
+The version of Django to target, in the format ``<major>.<minor>``.
+Djade enables its fixers for versions up to and including the target version.
+
+This option defaults to 4.2, the oldest supported version when this project was created.
+See the list of available versions with ``djade  --help``.
 
 Rules
 =====
@@ -209,3 +223,25 @@ Djade also implements some extra rules:
 
       -  {% extends 'egg.html' %}
       +{% extends 'egg.html' %}
+
+Fixers
+======
+
+Djade applies the below fixes based on the target Django version from ``--target-version``.
+
+Django 2.1+: ``admin_static`` and ``staticfiles`` -> ``static``
+---------------------------------------------------------------
+
+From the `release note <https://docs.djangoproject.com/en/2.1/releases/2.1/#features-deprecated-in-2-1>`__:
+
+    ``{% load staticfiles %}`` and ``{% load admin_static %}`` are deprecated in favor of ``{% load static %}``, which works the same.
+
+Djade updates ``{% load %}`` tags appropriately:
+
+.. code-block:: diff
+
+    -{% load staticfiles %}
+    +{% load static %}
+
+    -{% load admin_static %}
+    +{% load static %}
