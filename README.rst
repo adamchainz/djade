@@ -147,6 +147,19 @@ Djade implements some rules listed in the Django contribution style guide’s `t
       -{% load omelette frittata %}
       +{% load friattata omelette %}
 
+* Unindent top-level ``{% block %}`` and ``{% endblock %}`` tags when ``{% extends %}`` is used:
+
+  .. code-block:: diff
+
+      -  {% extends 'egg.html' %}
+      +{% extends 'egg.html' %}
+
+      -  {% block yolk %}
+      +{% block yolk %}
+           ...
+      -  {% endblock yolk %}
+      +{% endblock yolk %}
+
 Djade also implements some extra rules:
 
 * No leading empty lines:
@@ -188,3 +201,11 @@ Djade also implements some extra rules:
       -
       -{% load frittata %}
       +{% load frittata omelette %}
+
+
+* Unindent ``{% extends %}`` tags:
+
+.. code-block:: diff
+
+    -  {% extends 'egg.html' %}
+    +{% extends 'egg.html' %}
