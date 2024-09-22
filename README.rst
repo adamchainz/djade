@@ -86,11 +86,35 @@ Usage
 =====
 
 ``djade`` is a commandline tool that rewrites files in place.
-Run it on a file to modify it:
+Run it on one or more files to modify them if necessary:
+
+.. code-block:: console
+
+    $ djade templates/index.html
+    Rewriting templates/index.html
+
+Djade does not have any ability to recurse through directories.
+Use the pre-commit integration, globbing, or another technique for applying to many files.
+For example, |with git ls-files pipe xargs|_:
+
+.. |with git ls-files pipe xargs| replace:: with ``git ls-files | xargs``
+.. _with git ls-files pipe xargs: https://adamj.eu/tech/2022/03/09/how-to-run-a-command-on-many-files-in-your-git-repository/
 
 .. code-block:: sh
 
-    djade templates/index.html
+    git ls-files -z -- '*.py' | xargs -0 djade
+
+…or PowerShell’s |ForEach-Object|__:
+
+.. |ForEach-Object| replace:: ``ForEach-Object``
+__ https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/foreach-object
+
+.. code-block:: powershell
+
+    git ls-files -- '*.py' | %{djade $_}
+
+Rules
+=====
 
 Djade implements some rules listed in the Django contribution style guide’s `template style section <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__:
 
