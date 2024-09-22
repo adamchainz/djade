@@ -61,4 +61,16 @@ mod tests {
         assert!(help_output.contains("A Django template formatter."));
         assert!(help_output.contains("Usage: djade [OPTIONS] <FILENAMES>..."));
     }
+
+    #[test]
+    fn test_target_version_default() {
+        let args = Args::parse_from(["djade", "file1.html"]);
+        assert_eq!(args.target_version, (4, 2));
+    }
+
+    #[test]
+    fn test_target_version_set() {
+        let args = Args::parse_from(["djade", "--target-version", "5.1", "file1.html"]);
+        assert_eq!(args.target_version, (5, 1));
+    }
 }
