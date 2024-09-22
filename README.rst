@@ -25,6 +25,9 @@ djade
 
 A Django template formatter.
 
+Based on Django’s `template style guide <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__.
+Very fast because it’s built in Rust: benchmarked taking 20ms to format 377 templates.
+
 ----
 
 **Improve your Django and Git skills** with `my books <https://adamj.eu/books/>`__.
@@ -128,7 +131,7 @@ Djade implements some rules listed in the Django contribution style guide’s `t
       -{%  crack egg  %}
       +{% crack egg %}
 
-* Add labels to ``{% endblock %}`` tags that aren’t on the same line as their opening ``{% block %}`` tag:
+* Label ``{% endblock %}`` tags that aren’t on the same line as their opening ``{% block %}`` tag:
 
   .. code-block:: diff
 
@@ -137,7 +140,7 @@ Djade implements some rules listed in the Django contribution style guide’s `t
       -{% endblock %}
       +{% endblock shell %}
 
-* In ``{% load %}`` tags, alphabetically sort libraries:
+* Sort libraries in ``{% load %}`` tags:
 
   .. code-block:: diff
 
@@ -146,7 +149,7 @@ Djade implements some rules listed in the Django contribution style guide’s `t
 
 Djade also implements some extra rules:
 
-* Leading empty lines are removed:
+* No leading empty lines::
 
   .. code-block:: diff
 
@@ -154,7 +157,7 @@ Djade also implements some extra rules:
        {% extends 'white.html' %}
        ...
 
-* Trailing empty lines are removed, and a trailing newline inserted if necessary:
+* No trailing empty lines:
 
   .. code-block:: diff
 
@@ -170,7 +173,7 @@ Djade also implements some extra rules:
     -{#egg#}
     +{# egg #}
 
-* Remove labels from ``{% endblock %}`` tags on the same line as their opening ``{% block %}`` tag:
+* No labels in ``{% endblock %}`` tags on the same line as their opening ``{% block %}`` tag:
 
   .. code-block:: diff
 
