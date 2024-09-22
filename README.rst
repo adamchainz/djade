@@ -46,7 +46,8 @@ pre-commit hook
 ---------------
 
 You can also install django-upgrade as a `pre-commit <https://pre-commit.com/>`__ hook.
-Add the following to the ``repos`` section of your ``.pre-commit-config.yaml`` file (`docs <https://pre-commit.com/#plugins>`__):
+
+**First,** add the following to the ``repos`` section of your ``.pre-commit-config.yaml`` file (`docs <https://pre-commit.com/#plugins>`__):
 
 .. code-block:: yaml
 
@@ -57,33 +58,23 @@ Add the following to the ``repos`` section of your ``.pre-commit-config.yaml`` f
 
 The separate repository is used to enable installation without compiling the Rust code.
 
-The default configuration uses pre-commit’s |files option|__ to pick up on any file in a directory called ``templates``, like:
+The default configuration uses pre-commit’s |files option|__ to pick up on any file in a directory called ``templates`` (`source <https://github.com/adamchainz/djade-pre-commit/blob/main/.pre-commit-hooks.yaml>`__).
+You may wish to override this if you have templates in different directories, by adding ``files`` to the hook configuration in your ``.pre-commit-config.yaml`` file.
 
 .. |files option| replace:: ``files`` option
-__ https://pre-commit.com/#filtering-files-with-types
+__ https://pre-commit.com/#creating-new-hooks
 
-.. code-block:: yaml
-
-    files: '.*/templates/.*'
-
-You may wish to override this if you have templates in different directories.
-For example, add filtering to only format HTML files:
-
-.. code-block:: yaml
-
-    -   repo: https://github.com/adamchainz/djade-pre-commit
-        rev: ""  # replace with latest tag on GitHub
-        hooks:
-        -   id: djade
-            types_or: [html]
-
-After adding the hook, format your entire project:
+**Second,** format your entire project:
 
 .. code-block:: sh
 
     pre-commit run djade --all-files
 
-You may wish to configure ``git blame`` to ignore your initial formatting commit with a |.git-blame-ignore-revs file|__.
+Check these changes for any potential Djade bugs and commit them.
+Try ``git diff --ignore-all-space`` to check non-whitespace changes.
+
+**Third,** consider adding the previous commit SHA to a |.git-blame-ignore-revs file|__.
+This will prevent the initial formatting commit from showing up in ``git blame``.
 
 .. |.git-blame-ignore-revs file| replace:: ``.git-blame-ignore-revs`` file
 __ https://docs.github.com/en/repositories/working-with-files/using-files/viewing-a-file#ignore-commits-in-the-blame-view
