@@ -25,6 +25,9 @@ djade
 
 A Django template formatter.
 
+Based on Django’s `template style guide <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__.
+Very fast because it’s built in Rust: benchmarked taking 20ms to format 377 templates.
+
 ----
 
 **Improve your Django and Git skills** with `my books <https://adamj.eu/books/>`__.
