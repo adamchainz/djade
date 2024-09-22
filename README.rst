@@ -149,7 +149,7 @@ Djade implements some rules listed in the Django contribution style guide’s `t
 
 Djade also implements some extra rules:
 
-* No leading empty lines::
+* No leading empty lines:
 
   .. code-block:: diff
 
