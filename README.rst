@@ -145,31 +145,31 @@ Djade implements some rules listed in the Django contribution style guide’s `t
 
   .. code-block:: diff
 
-      -{{egg}}
-      +{{ egg }}
+    -{{egg}}
+    +{{ egg }}
 
-      -{%  crack egg  %}
-      +{% crack egg %}
+    -{%  crack egg  %}
+    +{% crack egg %}
 
 * Label ``{% endblock %}`` tags that aren’t on the same line as their opening ``{% block %}`` tag:
 
   .. code-block:: diff
 
-       {% block shell %}
-       ...
-      -{% endblock %}
-      +{% endblock shell %}
+     {% block shell %}
+     ...
+    -{% endblock %}
+    +{% endblock shell %}
 
 * Sort libraries in ``{% load %}`` tags:
 
   .. code-block:: diff
 
-      -{% load omelette frittata %}
-      +{% load friattata omelette %}
+    -{% load omelette frittata %}
+    +{% load friattata omelette %}
 
 * Inside variables, no spaces around filters:
 
- .. code-block::
+  .. code-block::
 
     -{{ egg | crack }}
     +{{ egg|crack }}
@@ -178,14 +178,14 @@ Djade implements some rules listed in the Django contribution style guide’s `t
 
   .. code-block:: diff
 
-      -  {% extends 'egg.html' %}
-      +{% extends 'egg.html' %}
+    -  {% extends 'egg.html' %}
+    +{% extends 'egg.html' %}
 
-      -  {% block yolk %}
-      +{% block yolk %}
-           ...
-      -  {% endblock yolk %}
-      +{% endblock yolk %}
+    -  {% block yolk %}
+    +{% block yolk %}
+         ...
+    -  {% endblock yolk %}
+    +{% endblock yolk %}
 
 Djade also implements some extra rules:
 
@@ -193,18 +193,18 @@ Djade also implements some extra rules:
 
   .. code-block:: diff
 
-      -
-       {% extends 'white.html' %}
-       ...
+    -
+     {% extends 'white.html' %}
+     ...
 
 * No trailing empty lines:
 
   .. code-block:: diff
 
-       ...
-       {% endblock content %}
-      -
-      -
+     ...
+     {% endblock content %}
+    -
+    -
 
 * One space around comment tags:
 
@@ -217,25 +217,25 @@ Djade also implements some extra rules:
 
   .. code-block:: diff
 
-      -{% block shell %}...{% endblock shell %}
-      +{% block shell %}...{% endblock %}
+    -{% block shell %}...{% endblock shell %}
+    +{% block shell %}...{% endblock %}
 
 * Merge consecutive ``{% load %}`` tags:
 
   .. code-block:: diff
 
-      -{% load omelette %}
-      -
-      -{% load frittata %}
-      +{% load frittata omelette %}
+    -{% load omelette %}
+    -
+    -{% load frittata %}
+    +{% load frittata omelette %}
 
 
 * Unindent ``{% extends %}`` tags:
 
   .. code-block:: diff
 
-      -  {% extends 'egg.html' %}
-      +{% extends 'egg.html' %}
+    -  {% extends 'egg.html' %}
+    +{% extends 'egg.html' %}
 
 Fixers
 ======
