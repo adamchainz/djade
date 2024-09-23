@@ -13,29 +13,11 @@ pub struct Args {
 
     #[arg(
         long,
-        default_value = "4.2",
-        value_parser = parse_version,
+        default_value = None,
+        value_parser = ["2.1", "2.2", "3.0", "3.1", "3.2", "4.1", "4.2", "5.0", "5.1"],
         help = "The version of Django to target.",
     )]
-    pub target_version: (u8, u8),
-}
-
-fn parse_version(s: &str) -> Result<(u8, u8), String> {
-    match s {
-        "2.1" => Ok((2, 1)),
-        "2.2" => Ok((2, 2)),
-        "3.0" => Ok((3, 0)),
-        "3.1" => Ok((3, 1)),
-        "3.2" => Ok((3, 2)),
-        "4.1" => Ok((4, 1)),
-        "4.2" => Ok((4, 2)),
-        "5.0" => Ok((5, 0)),
-        "5.1" => Ok((5, 1)),
-        _ => Err(format!(
-            "Invalid version: {}. Allowed versions are 4.2, 5.0, 5.1.",
-            s
-        )),
-    }
+    pub target_version: Option<String>,
 }
 
 #[cfg(test)]
@@ -65,12 +47,12 @@ mod tests {
     #[test]
     fn test_target_version_default() {
         let args = Args::parse_from(["djade", "file1.html"]);
-        assert_eq!(args.target_version, (4, 2));
+        assert_eq!(args.target_version, None);
     }
 
     #[test]
     fn test_target_version_set() {
         let args = Args::parse_from(["djade", "--target-version", "5.1", "file1.html"]);
-        assert_eq!(args.target_version, (5, 1));
+        assert_eq!(args.target_version, Some(String::from("5.1")));
     }
 }
