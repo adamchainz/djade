@@ -167,6 +167,13 @@ Djade implements some rules listed in the Django contribution style guide’s `t
       -{% load omelette frittata %}
       +{% load friattata omelette %}
 
+* Inside variables, no spaces around filters:
+
+ .. code-block::
+
+    -{{ egg | crack }}
+    +{{ egg|crack }}
+
 * Unindent top-level ``{% block %}`` and ``{% endblock %}`` tags when ``{% extends %}`` is used:
 
   .. code-block:: diff
