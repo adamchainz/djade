@@ -2,6 +2,13 @@
 Changelog
 =========
 
+* Add formatting of filters in variables:
+
+  .. code-block:: diff
+
+      -{{ egg | crack }}
+      +{{ egg|crack }}
+
 * Add unindenting of ``{% extends %}`` tags, and top-level ``{% block %}`` and ``{% endblock %}`` tags where ``{% extends %}`` is used.
 
   `PR #30 <https://github.com/adamchainz/djade/pull/30>`__.

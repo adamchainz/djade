@@ -181,15 +181,123 @@ fn create_token(
     }
 }
 
+// Expression lexer based on Django’s FilterExpression:
+// https://github.com/django/django/blob/ad7f8129f3d2de937611d72e257fb07d1306a855/django/template/base.py#L617
+
+static FILTER_RE: OnceLock<Regex> = OnceLock::new();
+
+fn get_filter_re() -> &'static Regex {
+    FILTER_RE.get_or_init(build_filter_re)
+}
+
+fn build_filter_re() -> Regex {
+    let constant_string = format!(
+        r#"(?x)
+        (?:{i18n_open}{strdq}{i18n_close}|
+           {i18n_open}{strsq}{i18n_close}|
+           {strdq}|
+           {strsq})
+    "#,
+        strdq = r#""[^"\\]*(?:\\.[^"\\]*)*""#,
+        strsq = r#"'[^'\\]*(?:\\.[^'\\]*)*'"#,
+        i18n_open = regex::escape("_("),
+        i18n_close = regex::escape(")"),
+    );
+
+    regex::RegexBuilder::new(&format!(
+        r#"(?x)
+        ^(?P<constant>{constant})|
+        ^(?P<var>[{var_chars}]+|{num})|
+         (?:\s*{filter_sep}\s*
+             (?P<filter_name>\w+)
+                 (?:{arg_sep}
+                     (?:
+                      (?P<constant_arg>{constant})|
+                      (?P<var_arg>[{var_chars}]+|{num})
+                     )
+                 )?
+         )"#,
+        constant = constant_string,
+        num = r"[-+.]?\d[\d.e]*",
+        var_chars = r"\w\.",
+        filter_sep = regex::escape("|"),
+        arg_sep = regex::escape(":"),
+    ))
+    .build()
+    .unwrap()
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ExpressionTokenFilterArg {
+    None,
+    Constant(String),
+    Variable(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ExpressionToken {
+    Constant(String),
+    Variable(String),
+    Filter(String, ExpressionTokenFilterArg),
+}
+
+fn lex_expression(expr: &str) -> Vec<ExpressionToken> {
+    let re = get_filter_re();
+    let mut tokens = Vec::new();
+    let mut upto = 0;
+    let mut variable = false;
+    for captures in re.captures_iter(expr) {
+        let start = captures.get(0).unwrap().start();
+        if upto != start {
+            // Syntax error - ignore it and return whole expression as constant
+            return vec![ExpressionToken::Constant(expr.to_string())];
+        }
+
+        if !variable {
+            if let Some(constant) = captures.name("constant") {
+                tokens.push(ExpressionToken::Constant(constant.as_str().to_string()));
+            } else if let Some(variable) = captures.name("var") {
+                tokens.push(ExpressionToken::Variable(variable.as_str().to_string()));
+            }
+            variable = true;
+        } else {
+            let filter_name = captures.name("filter_name").unwrap().as_str().to_string();
+            if let Some(constant_arg) = captures.name("constant_arg") {
+                tokens.push(ExpressionToken::Filter(
+                    filter_name,
+                    ExpressionTokenFilterArg::Constant(constant_arg.as_str().to_string()),
+                ));
+            } else if let Some(var_arg) = captures.name("var_arg") {
+                tokens.push(ExpressionToken::Filter(
+                    filter_name,
+                    ExpressionTokenFilterArg::Variable(var_arg.as_str().to_string()),
+                ));
+            } else {
+                tokens.push(ExpressionToken::Filter(
+                    filter_name,
+                    ExpressionTokenFilterArg::None,
+                ));
+            }
+        }
+        upto = captures.get(0).unwrap().end();
+    }
+    if upto != expr.len() {
+        // Syntax error - ignore it and return whole expression as constant
+        return vec![ExpressionToken::Constant(expr.to_string())];
+    }
+    tokens
+}
+
 fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     // Lex
     let mut tokens = lex(content);
 
     // Token-fixing passes
+    format_variables(&mut tokens);
+    fix_template_whitespace(&mut tokens);
     update_load_tags(&mut tokens, target_version);
     fix_endblock_labels(&mut tokens);
     unindent_extends_and_blocks(&mut tokens);
-    fix_template_whitespace(&mut tokens);
 
     // Build result
     let mut result = String::new();
@@ -214,6 +322,38 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
         }
     }
     result
+}
+
+fn format_variables(tokens: &mut Vec<Token>) {
+    for token in tokens.iter_mut() {
+        if token.token_type == TokenType::VAR {
+            let filter_tokens = lex_expression(&token.contents);
+            let mut new_contents = String::new();
+            for filter_token in filter_tokens {
+                match filter_token {
+                    ExpressionToken::Constant(constant) => {
+                        new_contents.push_str(&constant);
+                    }
+                    ExpressionToken::Variable(variable) => {
+                        new_contents.push_str(&variable);
+                    }
+                    ExpressionToken::Filter(filter_name, arg) => {
+                        new_contents.push_str(&format!("|{}", filter_name));
+                        match arg {
+                            ExpressionTokenFilterArg::None => {}
+                            ExpressionTokenFilterArg::Constant(constant) => {
+                                new_contents.push_str(&format!(":{}", constant));
+                            }
+                            ExpressionTokenFilterArg::Variable(variable) => {
+                                new_contents.push_str(&format!(":{}", variable));
+                            }
+                        }
+                    }
+                }
+            }
+            token.contents = new_contents;
+        }
+    }
 }
 
 fn fix_template_whitespace(tokens: &mut Vec<Token>) {
@@ -350,6 +490,80 @@ fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // format_variables
+
+    #[test]
+    fn test_format_variables_constant_int() {
+        let formatted = format("{{ 1 }}\n", None);
+        assert_eq!(formatted, "{{ 1 }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_float() {
+        let formatted = format("{{ 1.23 }}\n", None);
+        assert_eq!(formatted, "{{ 1.23 }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_float_negative() {
+        let formatted = format("{{ -1.23 }}\n", None);
+        assert_eq!(formatted, "{{ -1.23 }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_str() {
+        let formatted = format("{{ 'egg' }}\n", None);
+        assert_eq!(formatted, "{{ 'egg' }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_str_translated() {
+        let formatted = format("{{ _('egg') }}\n", None);
+        assert_eq!(formatted, "{{ _('egg') }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_var() {
+        let formatted = format("{{ egg }}\n", None);
+        assert_eq!(formatted, "{{ egg }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_var_attr() {
+        let formatted = format("{{ egg.shell }}\n", None);
+        assert_eq!(formatted, "{{ egg.shell }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_variable_filter_no_arg() {
+        let formatted = format("{{ egg | crack }}\n", None);
+        assert_eq!(formatted, "{{ egg|crack }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_variable_filter_constant_arg() {
+        let formatted = format("{{ egg | crack:'fully' }}\n", None);
+        assert_eq!(formatted, "{{ egg|crack:'fully' }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_variable_filter_variable_arg() {
+        let formatted = format("{{ egg | crack:amount }}\n", None);
+        assert_eq!(formatted, "{{ egg|crack:amount }}\n");
+    }
+
+    #[test]
+    fn test_format_syntax_error_start() {
+        let formatted = format("{{ ?egg | crack }}\n", None);
+        assert_eq!(formatted, "{{ ?egg | crack }}\n");
+    }
+
+    #[test]
+    fn test_format_syntax_error_end() {
+        let formatted = format("{{ egg | crack? }}\n", None);
+        assert_eq!(formatted, "{{ egg | crack? }}\n");
+    }
 
     // fix_start_end_whitespace
 
