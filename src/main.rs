@@ -200,20 +200,20 @@ fn build_filter_re() -> Regex {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum ExpressionTokenFilterArg {
+enum FilterExpressionFilterArg {
     None,
     Constant(String),
     Variable(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum ExpressionToken {
+enum FilterExpression {
     Constant(String),
     Variable(String),
-    Filter(String, ExpressionTokenFilterArg),
+    Filter(String, FilterExpressionFilterArg),
 }
 
-fn lex_expression(expr: &str) -> Vec<ExpressionToken> {
+fn lex_filter_expression(expr: &str) -> Vec<FilterExpression> {
     let re = get_filter_re();
     let mut tokens = Vec::new();
     let mut upto = 0;
@@ -222,32 +222,32 @@ fn lex_expression(expr: &str) -> Vec<ExpressionToken> {
         let start = captures.get(0).unwrap().start();
         if upto != start {
             // Syntax error - ignore it and return whole expression as constant
-            return vec![ExpressionToken::Constant(expr.to_string())];
+            return vec![FilterExpression::Constant(expr.to_string())];
         }
 
         if !variable {
             if let Some(constant) = captures.name("constant") {
-                tokens.push(ExpressionToken::Constant(constant.as_str().to_string()));
+                tokens.push(FilterExpression::Constant(constant.as_str().to_string()));
             } else if let Some(variable) = captures.name("var") {
-                tokens.push(ExpressionToken::Variable(variable.as_str().to_string()));
+                tokens.push(FilterExpression::Variable(variable.as_str().to_string()));
             }
             variable = true;
         } else {
             let filter_name = captures.name("filter_name").unwrap().as_str().to_string();
             if let Some(constant_arg) = captures.name("constant_arg") {
-                tokens.push(ExpressionToken::Filter(
+                tokens.push(FilterExpression::Filter(
                     filter_name,
-                    ExpressionTokenFilterArg::Constant(constant_arg.as_str().to_string()),
+                    FilterExpressionFilterArg::Constant(constant_arg.as_str().to_string()),
                 ));
             } else if let Some(var_arg) = captures.name("var_arg") {
-                tokens.push(ExpressionToken::Filter(
+                tokens.push(FilterExpression::Filter(
                     filter_name,
-                    ExpressionTokenFilterArg::Variable(var_arg.as_str().to_string()),
+                    FilterExpressionFilterArg::Variable(var_arg.as_str().to_string()),
                 ));
             } else {
-                tokens.push(ExpressionToken::Filter(
+                tokens.push(FilterExpression::Filter(
                     filter_name,
-                    ExpressionTokenFilterArg::None,
+                    FilterExpressionFilterArg::None,
                 ));
             }
         }
@@ -255,7 +255,7 @@ fn lex_expression(expr: &str) -> Vec<ExpressionToken> {
     }
     if upto != expr.len() {
         // Syntax error - ignore it and return whole expression as constant
-        return vec![ExpressionToken::Constant(expr.to_string())];
+        return vec![FilterExpression::Constant(expr.to_string())];
     }
     tokens
 }
@@ -299,24 +299,24 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
 fn format_variables(tokens: &mut Vec<Token>) {
     for token in tokens.iter_mut() {
         if token.token_type == TokenType::VAR {
-            let filter_tokens = lex_expression(&token.contents);
+            let filter_tokens = lex_filter_expression(&token.contents);
             let mut new_contents = String::new();
             for filter_token in filter_tokens {
                 match filter_token {
-                    ExpressionToken::Constant(constant) => {
+                    FilterExpression::Constant(constant) => {
                         new_contents.push_str(&constant);
                     }
-                    ExpressionToken::Variable(variable) => {
+                    FilterExpression::Variable(variable) => {
                         new_contents.push_str(&variable);
                     }
-                    ExpressionToken::Filter(filter_name, arg) => {
+                    FilterExpression::Filter(filter_name, arg) => {
                         new_contents.push_str(&format!("|{}", filter_name));
                         match arg {
-                            ExpressionTokenFilterArg::None => {}
-                            ExpressionTokenFilterArg::Constant(constant) => {
+                            FilterExpressionFilterArg::None => {}
+                            FilterExpressionFilterArg::Constant(constant) => {
                                 new_contents.push_str(&format!(":{}", constant));
                             }
-                            ExpressionTokenFilterArg::Variable(variable) => {
+                            FilterExpressionFilterArg::Variable(variable) => {
                                 new_contents.push_str(&format!(":{}", variable));
                             }
                         }
