@@ -169,7 +169,7 @@ Djade implements some rules listed in the Django contribution style guide’s `t
 
 * Inside variables, no spaces around filters:
 
-  .. code-block::
+  .. code-block:: diff
 
     -{{ egg | crack }}
     +{{ egg|crack }}
