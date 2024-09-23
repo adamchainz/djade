@@ -90,13 +90,21 @@ Usage
 =====
 
 ``djade`` is a commandline tool that rewrites files in place.
-Pass your Django version as ``<major>.<minor>`` to the ``--target-version`` flag and a list of template files.
-Djade will format and update the templates as necessary:
+Pass a list of template files to format them:
 
 .. code-block:: console
 
-    $ djade --target-version 5.1 templates/index.html
-    Rewriting templates/index.html
+    $ djade --target-version 5.1 templates/eggs/*.html
+    Rewriting templates/eggs/dodo.html
+    Rewriting templates/eggs/ostrich.html
+
+Djade can also upgrade some old template syntax.
+Add the ``--target-version`` option with your Django version as ``<major>.<minor>`` to enable applicable fixers:
+
+.. code-block:: console
+
+    $ djade --target-version 5.1 templates/eggs/*.html
+    Rewriting templates/eggs/quail.html
 
 Djade does not have any ability to recurse through directories.
 Use the pre-commit integration, globbing, or another technique for applying to many files.
@@ -124,10 +132,8 @@ Options
 ``--target-version``
 --------------------
 
-The version of Django to target, in the format ``<major>.<minor>``.
-Djade enables its fixers for versions up to and including the target version.
-
-This option defaults to 4.2, the oldest supported version when this project was created.
+Optional: the version of Django to target, in the format ``<major>.<minor>``.
+If provided, Djade enables its fixers for versions up to and including the target version.
 See the list of available versions with ``djade  --help``.
 
 Rules

@@ -8,10 +8,26 @@ use std::sync::OnceLock;
 fn main() {
     let args = cli::Args::parse();
 
+    let target_version: Option<(u8, u8)> = {
+        if args.target_version.is_none() {
+            None
+        } else {
+            let version = args.target_version.unwrap();
+            let parts: Vec<&str> = version.split('.').collect();
+            if parts.len() != 2 {
+                panic!("Invalid target version format. Expected 'major.minor'");
+            }
+            Some((
+                parts[0].parse().expect("Invalid major version number"),
+                parts[1].parse().expect("Invalid minor version number"),
+            ))
+        }
+    };
+
     let mut changed = false;
     for filename in &args.filenames {
         let content = fs::read_to_string(filename).expect("Could not open {file}");
-        let formatted = format(&content, args.target_version);
+        let formatted = format(&content, target_version);
         if formatted != content {
             println!("Rewriting {}", filename);
             changed = true;
@@ -165,7 +181,7 @@ fn create_token(
     }
 }
 
-fn format(content: &str, target_version: (u8, u8)) -> String {
+fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     // Lex
     let mut tokens = lex(content);
 
@@ -225,7 +241,7 @@ fn fix_template_whitespace(tokens: &mut Vec<Token>) {
     }
 }
 
-fn update_load_tags(tokens: &mut Vec<Token>, target_version: (u8, u8)) {
+fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
     let mut i = 0;
     while i < tokens.len() {
         if tokens[i].token_type == TokenType::BLOCK && tokens[i].contents.starts_with("load ") {
@@ -250,7 +266,7 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: (u8, u8)) {
             }
 
             // Django 2.1+: admin_static and staticfiles -> static
-            if target_version >= (2, 1) {
+            if target_version.is_some() && target_version.unwrap() >= (2, 1) {
                 parts = parts
                     .into_iter()
                     .map(|part| match part {
@@ -339,19 +355,19 @@ mod tests {
 
     #[test]
     fn test_format_trim_leading_whitespace() {
-        let formatted = format("  \n  {% yolk %}\n", (5, 1));
+        let formatted = format("  \n  {% yolk %}\n", None);
         assert_eq!(formatted, "  {% yolk %}\n");
     }
 
     #[test]
     fn test_format_trim_trailing_whitespace() {
-        let formatted = format("{% yolk %}  \n  ", (5, 1));
+        let formatted = format("{% yolk %}  \n  ", None);
         assert_eq!(formatted, "{% yolk %}\n");
     }
 
     #[test]
     fn test_format_preserve_content_whitespace() {
-        let formatted = format("{% block crack %}\n  Yum  \n{% endblock crack %}", (5, 1));
+        let formatted = format("{% block crack %}\n  Yum  \n{% endblock crack %}", None);
         assert_eq!(
             formatted,
             "{% block crack %}\n  Yum  \n{% endblock crack %}\n"
@@ -360,19 +376,19 @@ mod tests {
 
     #[test]
     fn test_format_add_trailing_newline() {
-        let formatted = format("{% block crack %}Yum{% endblock %}", (5, 1));
+        let formatted = format("{% block crack %}Yum{% endblock %}", None);
         assert_eq!(formatted, "{% block crack %}Yum{% endblock %}\n");
     }
 
     #[test]
     fn test_format_whitespace_only_template() {
-        let formatted = format("  \t\n  ", (5, 1));
+        let formatted = format("  \t\n  ", None);
         assert_eq!(formatted, "\n");
     }
 
     #[test]
     fn test_format_no_text_tokens() {
-        let formatted = format("{% yolk %}", (5, 1));
+        let formatted = format("{% yolk %}", None);
         assert_eq!(formatted, "{% yolk %}\n");
     }
 
@@ -380,61 +396,61 @@ mod tests {
 
     #[test]
     fn test_format_load_sorted() {
-        let formatted = format("{% load z y x %}\n", (5, 1));
+        let formatted = format("{% load z y x %}\n", None);
         assert_eq!(formatted, "{% load x y z %}\n");
     }
 
     #[test]
     fn test_format_load_whitespace_cleaned() {
-        let formatted = format("{% load   x  y %}\n", (5, 1));
+        let formatted = format("{% load   x  y %}\n", None);
         assert_eq!(formatted, "{% load x y %}\n");
     }
 
     #[test]
     fn test_format_load_consecutive_merged() {
-        let formatted = format("{% load x %}{% load y %}\n", (5, 1));
+        let formatted = format("{% load x %}{% load y %}\n", None);
         assert_eq!(formatted, "{% load x y %}\n");
     }
 
     #[test]
     fn test_format_load_consecutive_space_merged() {
-        let formatted = format("{% load x %} {% load y %}\n", (5, 1));
+        let formatted = format("{% load x %} {% load y %}\n", None);
         assert_eq!(formatted, "{% load x y %}\n");
     }
 
     #[test]
     fn test_format_load_consecutive_newline_merged() {
-        let formatted = format("{% load x %}\n{% load y %}\n", (5, 1));
+        let formatted = format("{% load x %}\n{% load y %}\n", None);
         assert_eq!(formatted, "{% load x y %}\n");
     }
 
     #[test]
     fn test_format_load_trailing_empty_lines_left() {
-        let formatted = format("{% load albumen %}\n\n{% albu %}\n", (5, 1));
+        let formatted = format("{% load albumen %}\n\n{% albu %}\n", None);
         assert_eq!(formatted, "{% load albumen %}\n\n{% albu %}\n");
     }
 
     #[test]
     fn test_format_load_admin_static_migrated() {
-        let formatted = format("{% load admin_static %}\n", (2, 1));
+        let formatted = format("{% load admin_static %}\n", Some((2, 1)));
         assert_eq!(formatted, "{% load static %}\n");
     }
 
     #[test]
     fn test_format_load_admin_static_not_migrated() {
-        let formatted = format("{% load admin_static %}\n", (2, 0));
+        let formatted = format("{% load admin_static %}\n", Some((2, 0)));
         assert_eq!(formatted, "{% load admin_static %}\n");
     }
 
     #[test]
     fn test_format_load_staticfiles_migrated() {
-        let formatted = format("{% load staticfiles %}\n", (2, 1));
+        let formatted = format("{% load staticfiles %}\n", Some((2, 1)));
         assert_eq!(formatted, "{% load static %}\n");
     }
 
     #[test]
     fn test_format_load_staticfiles_not_migrated() {
-        let formatted = format("{% load staticfiles %}\n", (2, 0));
+        let formatted = format("{% load staticfiles %}\n", Some((2, 0)));
         assert_eq!(formatted, "{% load staticfiles %}\n");
     }
 
@@ -442,19 +458,19 @@ mod tests {
 
     #[test]
     fn test_format_endblock_broken() {
-        let formatted = format("{% endblock %}\n", (5, 1));
+        let formatted = format("{% endblock %}\n", None);
         assert_eq!(formatted, "{% endblock %}\n");
     }
 
     #[test]
     fn test_format_endblock_broken_nesting() {
-        let formatted = format("{% block a %}\n{% endblock b %}\n", (5, 1));
+        let formatted = format("{% block a %}\n{% endblock b %}\n", None);
         assert_eq!(formatted, "{% block a %}\n{% endblock b %}\n");
     }
 
     #[test]
     fn test_format_endblock_label_added() {
-        let formatted = format("{% block h %}\n{% endblock %}\n", (5, 1));
+        let formatted = format("{% block h %}\n{% endblock %}\n", None);
         assert_eq!(formatted, "{% block h %}\n{% endblock h %}\n");
     }
 
@@ -462,7 +478,7 @@ mod tests {
     fn test_format_endblock_label_added_nested() {
         let formatted = format(
             "{% block h %}\n{% block i %}\n{% endblock %}\n{% endblock %}\n",
-            (5, 1),
+            None,
         );
         assert_eq!(
             formatted,
@@ -472,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_format_endblock_label_removed() {
-        let formatted = format("{% block h %}i{% endblock h %}\n", (5, 1));
+        let formatted = format("{% block h %}i{% endblock h %}\n", None);
         assert_eq!(formatted, "{% block h %}i{% endblock %}\n");
     }
 
@@ -480,7 +496,7 @@ mod tests {
     fn test_format_endblock_with_blocktranslate() {
         let formatted = format(
             "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock %}\n",
-            (5, 1),
+            None,
         );
         assert_eq!(
             formatted,
@@ -492,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_format_extends_unindented() {
-        let formatted = format("  {% extends 'egg.html' %}\n", (5, 1));
+        let formatted = format("  {% extends 'egg.html' %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n");
     }
 
@@ -500,7 +516,7 @@ mod tests {
     fn test_format_top_level_blocks_unindented() {
         let formatted = format(
             "{% extends 'egg.html' %}\n  {% block yolk %}\n    yellow\n  {% endblock yolk %}\n",
-            (5, 1),
+            None,
         );
         assert_eq!(
             formatted,
@@ -510,7 +526,7 @@ mod tests {
 
     #[test]
     fn test_format_second_level_blocks_indented() {
-        let formatted = format("{% extends 'egg.html' %}\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n", (5, 1));
+        let formatted = format("{% extends 'egg.html' %}\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n");
     }
 
@@ -518,7 +534,7 @@ mod tests {
     fn test_no_unindent_without_extends() {
         let formatted = format(
             "  {% block yolk %}\n    yellow\n  {% endblock yolk %}\n",
-            (5, 1),
+            None,
         );
         assert_eq!(
             formatted,
@@ -528,7 +544,7 @@ mod tests {
 
     #[test]
     fn test_unindent_multiple_blocks() {
-        let formatted = format("{% extends 'egg.html' %}\n  {% block yolk %}\n  yellow\n  {% endblock yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n", (5, 1));
+        let formatted = format("{% extends 'egg.html' %}\n  {% block yolk %}\n  yellow\n  {% endblock yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n{% block yolk %}\n  yellow\n{% endblock yolk %}\n{% block white %}\n    protein\n{% endblock white %}\n");
     }
 
@@ -536,13 +552,13 @@ mod tests {
 
     #[test]
     fn test_format_spaces_added() {
-        let formatted = format("a {{var}} {%tag%} {#comment#}\n", (5, 1));
+        let formatted = format("a {{var}} {%tag%} {#comment#}\n", None);
         assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}\n");
     }
 
     #[test]
     fn test_format_spaces_removed() {
-        let formatted = format("a {{  var  }} {%  tag  %} {#  comment  #}\n", (5, 1));
+        let formatted = format("a {{  var  }} {%  tag  %} {#  comment  #}\n", None);
         assert_eq!(formatted, "a {{ var }} {% tag %} {# comment #}\n");
     }
 
@@ -550,7 +566,7 @@ mod tests {
     fn test_format_verbatim_left() {
         let formatted = format(
             "a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}\n",
-            (5, 1),
+            None,
         );
         assert_eq!(
             formatted,
