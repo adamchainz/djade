@@ -62,9 +62,6 @@ enum TokenType {
 struct Token {
     token_type: TokenType,
     contents: String,
-    #[allow(dead_code)]
-    position: (usize, usize),
-    #[allow(dead_code)]
     lineno: usize,
 }
 
@@ -80,24 +77,12 @@ fn lex(template_string: &str) -> Vec<Token> {
 
         if start > last_end {
             let text = &template_string[last_end..start];
-            result.push(create_token(
-                text,
-                (last_end, start),
-                lineno,
-                false,
-                &mut verbatim,
-            ));
+            result.push(create_token(text, lineno, false, &mut verbatim));
             lineno += text.matches('\n').count();
         }
 
         let token_string = token_match.as_str();
-        result.push(create_token(
-            token_string,
-            (start, end),
-            lineno,
-            true,
-            &mut verbatim,
-        ));
+        result.push(create_token(token_string, lineno, true, &mut verbatim));
         lineno += token_string.matches('\n').count();
 
         last_end = end;
@@ -105,13 +90,7 @@ fn lex(template_string: &str) -> Vec<Token> {
 
     if last_end < template_string.len() {
         let text = &template_string[last_end..];
-        result.push(create_token(
-            text,
-            (last_end, template_string.len()),
-            lineno,
-            false,
-            &mut verbatim,
-        ));
+        result.push(create_token(text, lineno, false, &mut verbatim));
     }
 
     result
@@ -119,7 +98,6 @@ fn lex(template_string: &str) -> Vec<Token> {
 
 fn create_token(
     token_string: &str,
-    position: (usize, usize),
     lineno: usize,
     in_tag: bool,
     verbatim: &mut Option<String>,
@@ -132,7 +110,6 @@ fn create_token(
                     return Token {
                         token_type: TokenType::TEXT,
                         contents: token_string.to_string(),
-                        position,
                         lineno,
                     };
                 }
@@ -143,7 +120,6 @@ fn create_token(
             Token {
                 token_type: TokenType::BLOCK,
                 contents: content.to_string(),
-                position,
                 lineno,
             }
         } else if verbatim.is_none() {
@@ -151,7 +127,6 @@ fn create_token(
                 Token {
                     token_type: TokenType::VAR,
                     contents: content.to_string(),
-                    position,
                     lineno,
                 }
             } else {
@@ -159,7 +134,6 @@ fn create_token(
                 Token {
                     token_type: TokenType::COMMENT,
                     contents: content.to_string(),
-                    position,
                     lineno,
                 }
             }
@@ -167,7 +141,6 @@ fn create_token(
             Token {
                 token_type: TokenType::TEXT,
                 contents: token_string.to_string(),
-                position,
                 lineno,
             }
         }
@@ -175,7 +148,6 @@ fn create_token(
         Token {
             token_type: TokenType::TEXT,
             contents: token_string.to_string(),
-            position,
             lineno,
         }
     }
@@ -374,7 +346,6 @@ fn fix_template_whitespace(tokens: &mut Vec<Token>) {
             tokens.push(Token {
                 token_type: TokenType::TEXT,
                 contents: "\n".to_string(),
-                position: (0, 0),
                 lineno: 0,
             });
         }
