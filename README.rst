@@ -107,7 +107,7 @@ For example, |with git ls-files pipe xargs|_:
 
 .. code-block:: sh
 
-    git ls-files -z -- '*.py' | xargs -0 djade
+    git ls-files -z -- '*.html' | xargs -0 djade
 
 …or PowerShell’s |ForEach-Object|__:
 
@@ -116,7 +116,7 @@ __ https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core
 
 .. code-block:: powershell
 
-    git ls-files -- '*.py' | %{djade $_}
+    git ls-files -- '*.html' | %{djade $_}
 
 Options
 =======
