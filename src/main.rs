@@ -50,10 +50,10 @@ const BLOCK_TAG_START: &str = "{%";
 const VARIABLE_TAG_START: &str = "{{";
 const COMMENT_TAG_START: &str = "{#";
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum TokenType {
     Text,
-    Variable,
+    Variable(Vec<FilterExpression>),
     Block,
     Comment,
 }
@@ -124,8 +124,9 @@ fn create_token(
             }
         } else if verbatim.is_none() {
             if token_string.starts_with(VARIABLE_TAG_START) {
+                let filter_expressions = lex_filter_expression(content);
                 Token {
-                    token_type: TokenType::Variable,
+                    token_type: TokenType::Variable(filter_expressions),
                     contents: content.to_string(),
                     lineno,
                 }
@@ -265,7 +266,6 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     let mut tokens = lex(content);
 
     // Token-fixing passes
-    format_variables(&mut tokens);
     fix_template_whitespace(&mut tokens);
     update_load_tags(&mut tokens, target_version);
     fix_endblock_labels(&mut tokens);
@@ -276,9 +276,9 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     for token in tokens {
         match token.token_type {
             TokenType::Text => result.push_str(&token.contents),
-            TokenType::Variable => {
+            TokenType::Variable(ref filter_expressions) => {
                 result.push_str("{{ ");
-                result.push_str(&token.contents);
+                format_variable(filter_expressions, &mut result);
                 result.push_str(" }}");
             }
             TokenType::Block => {
@@ -296,34 +296,31 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     result
 }
 
-fn format_variables(tokens: &mut Vec<Token>) {
-    for token in tokens.iter_mut() {
-        if token.token_type == TokenType::Variable {
-            let filter_tokens = lex_filter_expression(&token.contents);
-            let mut new_contents = String::new();
-            for filter_token in filter_tokens {
-                match filter_token {
-                    FilterExpression::Constant(constant) => {
-                        new_contents.push_str(&constant);
+#[inline(always)]
+fn format_variable(filter_expressions: &[FilterExpression], result: &mut String) {
+    for expr in filter_expressions {
+        match expr {
+            FilterExpression::Constant(constant) => {
+                result.push_str(constant);
+            }
+            FilterExpression::Variable(variable) => {
+                result.push_str(variable);
+            }
+            FilterExpression::Filter(filter_name, arg) => {
+                result.push('|');
+                result.push_str(filter_name);
+                match arg {
+                    FilterExpressionFilterArg::None => {}
+                    FilterExpressionFilterArg::Constant(constant) => {
+                        result.push(':');
+                        result.push_str(constant);
                     }
-                    FilterExpression::Variable(variable) => {
-                        new_contents.push_str(&variable);
-                    }
-                    FilterExpression::Filter(filter_name, arg) => {
-                        new_contents.push_str(&format!("|{}", filter_name));
-                        match arg {
-                            FilterExpressionFilterArg::None => {}
-                            FilterExpressionFilterArg::Constant(constant) => {
-                                new_contents.push_str(&format!(":{}", constant));
-                            }
-                            FilterExpressionFilterArg::Variable(variable) => {
-                                new_contents.push_str(&format!(":{}", variable));
-                            }
-                        }
+                    FilterExpressionFilterArg::Variable(variable) => {
+                        result.push(':');
+                        result.push_str(variable);
                     }
                 }
             }
-            token.contents = new_contents;
         }
     }
 }
