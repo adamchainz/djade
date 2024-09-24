@@ -52,10 +52,10 @@ const COMMENT_TAG_START: &str = "{#";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TokenType {
-    TEXT,
-    VAR,
-    BLOCK,
-    COMMENT,
+    Text,
+    Variable,
+    Block,
+    Comment,
 }
 
 #[derive(Debug)]
@@ -108,7 +108,7 @@ fn create_token(
             if let Some(v) = &verbatim {
                 if content != v {
                     return Token {
-                        token_type: TokenType::TEXT,
+                        token_type: TokenType::Text,
                         contents: token_string.to_string(),
                         lineno,
                     };
@@ -118,35 +118,35 @@ fn create_token(
                 *verbatim = Some(format!("end{}", content));
             }
             Token {
-                token_type: TokenType::BLOCK,
+                token_type: TokenType::Block,
                 contents: content.to_string(),
                 lineno,
             }
         } else if verbatim.is_none() {
             if token_string.starts_with(VARIABLE_TAG_START) {
                 Token {
-                    token_type: TokenType::VAR,
+                    token_type: TokenType::Variable,
                     contents: content.to_string(),
                     lineno,
                 }
             } else {
                 debug_assert!(token_string.starts_with(COMMENT_TAG_START));
                 Token {
-                    token_type: TokenType::COMMENT,
+                    token_type: TokenType::Comment,
                     contents: content.to_string(),
                     lineno,
                 }
             }
         } else {
             Token {
-                token_type: TokenType::TEXT,
+                token_type: TokenType::Text,
                 contents: token_string.to_string(),
                 lineno,
             }
         }
     } else {
         Token {
-            token_type: TokenType::TEXT,
+            token_type: TokenType::Text,
             contents: token_string.to_string(),
             lineno,
         }
@@ -275,18 +275,18 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     let mut result = String::new();
     for token in tokens {
         match token.token_type {
-            TokenType::TEXT => result.push_str(&token.contents),
-            TokenType::VAR => {
+            TokenType::Text => result.push_str(&token.contents),
+            TokenType::Variable => {
                 result.push_str("{{ ");
                 result.push_str(&token.contents);
                 result.push_str(" }}");
             }
-            TokenType::BLOCK => {
+            TokenType::Block => {
                 result.push_str("{% ");
                 result.push_str(&token.contents);
                 result.push_str(" %}");
             }
-            TokenType::COMMENT => {
+            TokenType::Comment => {
                 result.push_str("{# ");
                 result.push_str(&token.contents);
                 result.push_str(" #}");
@@ -298,7 +298,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
 
 fn format_variables(tokens: &mut Vec<Token>) {
     for token in tokens.iter_mut() {
-        if token.token_type == TokenType::VAR {
+        if token.token_type == TokenType::Variable {
             let filter_tokens = lex_filter_expression(&token.contents);
             let mut new_contents = String::new();
             for filter_token in filter_tokens {
@@ -334,17 +334,17 @@ fn fix_template_whitespace(tokens: &mut Vec<Token>) {
     let re = LEADING_BLANK_LINES.get_or_init(|| Regex::new(r"^(\s*\n)+").unwrap());
 
     if let Some(token) = tokens.first_mut() {
-        if token.token_type == TokenType::TEXT {
+        if token.token_type == TokenType::Text {
             token.contents = re.replace(&token.contents, "").to_string();
         }
     }
 
     if let Some(token) = tokens.last_mut() {
-        if token.token_type == TokenType::TEXT {
+        if token.token_type == TokenType::Text {
             token.contents = token.contents.trim_end().to_string() + "\n";
         } else {
             tokens.push(Token {
-                token_type: TokenType::TEXT,
+                token_type: TokenType::Text,
                 contents: "\n".to_string(),
                 lineno: 0,
             });
@@ -355,20 +355,20 @@ fn fix_template_whitespace(tokens: &mut Vec<Token>) {
 fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
     let mut i = 0;
     while i < tokens.len() {
-        if tokens[i].token_type == TokenType::BLOCK && tokens[i].contents.starts_with("load ") {
+        if tokens[i].token_type == TokenType::Block && tokens[i].contents.starts_with("load ") {
             let mut j = i + 1;
             let mut to_merge = vec![i];
             while j < tokens.len() {
                 match tokens[j].token_type {
-                    TokenType::TEXT if tokens[j].contents.trim().is_empty() => j += 1,
-                    TokenType::BLOCK if tokens[j].contents.starts_with("load ") => {
+                    TokenType::Text if tokens[j].contents.trim().is_empty() => j += 1,
+                    TokenType::Block if tokens[j].contents.starts_with("load ") => {
                         to_merge.push(j);
                         j += 1;
                     }
                     _ => break,
                 }
             }
-            if tokens[j - 1].token_type == TokenType::TEXT {
+            if tokens[j - 1].token_type == TokenType::Text {
                 j -= 1;
             }
             let mut parts = Vec::new();
@@ -400,7 +400,7 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
     let mut block_stack = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
-        if tokens[i].token_type == TokenType::BLOCK {
+        if tokens[i].token_type == TokenType::Block {
             if tokens[i].contents.starts_with("block ") {
                 let label = tokens[i].contents.split_whitespace().nth(1).unwrap_or("");
                 block_stack.push((i, label.to_string()));
@@ -429,7 +429,7 @@ fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
     let mut block_depth = 0;
 
     for i in 0..tokens.len() {
-        if tokens[i].token_type == TokenType::BLOCK {
+        if tokens[i].token_type == TokenType::Block {
             let content = &tokens[i].contents;
             if content.starts_with("extends ") {
                 after_extends = true;
@@ -450,7 +450,7 @@ fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
 }
 
 fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
-    if index > 0 && tokens[index - 1].token_type == TokenType::TEXT {
+    if index > 0 && tokens[index - 1].token_type == TokenType::Text {
         tokens[index - 1].contents = tokens[index - 1]
             .contents
             .trim_end_matches(&[' ', '\t'])
