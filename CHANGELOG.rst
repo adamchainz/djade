@@ -22,6 +22,10 @@ Changelog
 
 * Add ``--target-version`` option to specify target Django version.
 
+* Add Django 3.1+ fixer to migrate ``{% ifequal %}`` / ``{% endifequal %}`` and ``{% ifnotequal %}`` / ``{% endifnotequal %}`` to ``{% if %}`` / ``{% endif %}``.
+
+  `PR #35 <https://github.com/adamchainz/djade/pull/35>`__.
+
 * Add Django 2.1+ fixer to replace ``{% load %}`` of ``admin_static`` and ``staticfiles`` with ``static``.
 
   `PR #34 <https://github.com/adamchainz/djade/pull/34>`__.

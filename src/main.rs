@@ -312,6 +312,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     fix_template_whitespace(&mut tokens);
     update_load_tags(&mut tokens, target_version);
     fix_endblock_labels(&mut tokens);
+    migrate_ifequal_tags(&mut tokens, target_version);
     unindent_extends_and_blocks(&mut tokens);
 
     // Build result
@@ -494,6 +495,71 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
             }
         }
         i += 1;
+    }
+}
+
+fn migrate_ifequal_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+    if target_version.is_none() || target_version.unwrap() < (3, 1) {
+        return;
+    }
+
+    // First pass: find matching pairs
+    let mut stack = Vec::new();
+    let mut pairs = Vec::new();
+    for (i, token) in tokens.iter().enumerate() {
+        if let Token::Block { bits, .. } = token {
+            match bits[0].as_str() {
+                "ifequal" | "ifnotequal" => {
+                    if bits.len() == 3 {
+                        stack.push(i)
+                    }
+                }
+                "endifequal" | "endifnotequal" => {
+                    if let Some(start) = stack.pop() {
+                        if bits.len() == 1 {
+                            pairs.push((start, i));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Second pass: update pairs
+    for (start, end) in pairs.into_iter().rev() {
+        if let (
+            Some(Token::Block {
+                bits: start_bits, ..
+            }),
+            Some(Token::Block { .. }),
+        ) = (tokens.get(start), tokens.get(end))
+        {
+            if start_bits.len() >= 3 {
+                let comparison = if start_bits[0] == "ifequal" {
+                    "=="
+                } else {
+                    "!="
+                };
+                let var1 = start_bits[1].clone();
+                let var2 = start_bits[2].clone();
+
+                // Update start token
+                if let Token::Block { bits, .. } = &mut tokens[start] {
+                    bits.clear();
+                    bits.push("if".to_string());
+                    bits.push(var1);
+                    bits.push(comparison.to_string());
+                    bits.push(var2);
+                }
+
+                // Update end token
+                if let Token::Block { bits, .. } = &mut tokens[end] {
+                    bits.clear();
+                    bits.push("endif".to_string());
+                }
+            }
+        }
     }
 }
 
@@ -777,6 +843,110 @@ mod tests {
         assert_eq!(
             formatted,
             "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock h %}\n"
+        );
+    }
+
+    // migrate_ifequal_tags
+
+    #[test]
+    fn test_format_ifequal_old_django_not_migrated() {
+        let formatted = format("{% ifequal a b %}\n{% endifequal %}\n", Some((3, 0)));
+        assert_eq!(formatted, "{% ifequal a b %}\n{% endifequal %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_too_few_args_not_migrated() {
+        let formatted = format("{% ifequal a %}\n{% endifequal %}\n", Some((3, 1)));
+        assert_eq!(formatted, "{% ifequal a %}\n{% endifequal %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_too_many_args_not_migrated() {
+        let formatted = format("{% ifequal a b c %}\n{% endifequal %}\n", Some((3, 1)));
+        assert_eq!(formatted, "{% ifequal a b c %}\n{% endifequal %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_incorrect_pairing_start_not_migrated() {
+        let formatted = format("{% ifequal a b %}\n{% endif %}\n", Some((3, 1)));
+        assert_eq!(formatted, "{% ifequal a b %}\n{% endif %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_incorrect_pairing_end_not_migrated() {
+        let formatted = format("{% if a == b %}\n{% endifequal %}\n", Some((3, 1)));
+        assert_eq!(formatted, "{% if a == b %}\n{% endifequal %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_migrated() {
+        let formatted = format("{% ifequal a b %}\n{% endifequal %}\n", Some((3, 1)));
+        assert_eq!(formatted, "{% if a == b %}\n{% endif %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_migrated_constant() {
+        let formatted = format(
+            "{% ifequal a 'the golden goose' %}\n{% endifequal %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(formatted, "{% if a == 'the golden goose' %}\n{% endif %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_migrated_with_dots() {
+        let formatted = format(
+            "{% ifequal user.name author.name %}\n{% endifequal %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if user.name == author.name %}\n{% endif %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_ifequal_migrated_with_filters() {
+        let formatted = format(
+            "{% ifequal user.name|lower 'admin' %}\n{% endifequal %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if user.name|lower == 'admin' %}\n{% endif %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_ifnotequal_old_django_not_migrated() {
+        let formatted = format("{% ifnotequal a b %}\n{% endifnotequal %}\n", Some((3, 0)));
+        assert_eq!(formatted, "{% ifnotequal a b %}\n{% endifnotequal %}\n");
+    }
+
+    #[test]
+    fn test_format_ifnotequal_migrated() {
+        let formatted = format("{% ifnotequal a b %}\n{% endifnotequal %}\n", Some((3, 1)));
+        assert_eq!(formatted, "{% if a != b %}\n{% endif %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_migrated_with_translated_string() {
+        let formatted = format(
+            "{% ifequal message _('Welcome') %}\n{% endifequal %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(formatted, "{% if message == _('Welcome') %}\n{% endif %}\n");
+    }
+
+    #[test]
+    fn test_format_ifequal_nested_migrated() {
+        let formatted = format(
+            "{% ifequal a b %}\n{% ifnotequal b c %}\n{% endifnotequal %}\n{% endifequal %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if a == b %}\n{% if b != c %}\n{% endif %}\n{% endif %}\n"
         );
     }
 
