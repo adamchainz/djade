@@ -249,6 +249,29 @@ Fixers
 
 Djade applies the below fixes based on the target Django version from ``--target-version``.
 
+Django 3.1+: ``ifequal`` and ``ifnotequal`` -> ``if``
+-----------------------------------------------------
+
+From the `release note <https://docs.djangoproject.com/en/3.1/releases/3.1/#id2:~:text=The%20%7B%25%20ifequal%20%25%7D%20and%20%7B%25%20ifnotequal%20%25%7D%20template%20tags>`__:
+
+    The ``{% ifequal %}`` and ``{% ifnotequal %}`` template tags are deprecated in favor of ``{% if %}``.
+
+Djade updates the deprecated tags appropriately:
+
+.. code-block:: diff
+
+    -{% ifequal egg.colour 'golden' %}
+    +{% if egg.colour == 'golden' %}
+     golden
+    -{% endifequal %}
+    +{% endif %}
+
+    -{% ifnotequal egg.colour 'silver' %}
+    +{% if egg.colour != 'silver' %}
+     not silver
+    -{% endifnotequal %}
+    +{% endif %}
+
 Django 2.1+: ``admin_static`` and ``staticfiles`` -> ``static``
 ---------------------------------------------------------------
 
