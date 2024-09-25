@@ -3,7 +3,7 @@ mod cli;
 use clap::Parser;
 use regex::Regex;
 use std::fs;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 fn main() {
     let args = cli::Args::parse();
@@ -40,11 +40,8 @@ fn main() {
 // Lexer based on Django’s:
 // https://github.com/django/django/blob/main/django/template/base.py
 
-static TAG_RE: OnceLock<Regex> = OnceLock::new();
-
-fn get_tag_re() -> &'static Regex {
-    TAG_RE.get_or_init(|| Regex::new(r"(\{%.*?%\}|\{\{.*?\}\}|\{#.*?#\})").unwrap())
-}
+static TAG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(\{%.*?%\}|\{\{.*?\}\}|\{#.*?#\})").unwrap());
 
 const BLOCK_TAG_START: &str = "{%";
 const VARIABLE_TAG_START: &str = "{{";
@@ -71,7 +68,7 @@ fn lex(template_string: &str) -> Vec<Token> {
     let mut lineno = 1;
     let mut last_end = 0;
 
-    for cap in get_tag_re().captures_iter(template_string) {
+    for cap in (&*TAG_RE).captures_iter(template_string) {
         let token_match = cap.get(0).unwrap();
         let (start, end) = (token_match.start(), token_match.end());
 
@@ -157,13 +154,7 @@ fn create_token(
 // Expression lexer based on Django’s FilterExpression:
 // https://github.com/django/django/blob/ad7f8129f3d2de937611d72e257fb07d1306a855/django/template/base.py#L617
 
-static FILTER_RE: OnceLock<Regex> = OnceLock::new();
-
-fn get_filter_re() -> &'static Regex {
-    FILTER_RE.get_or_init(build_filter_re)
-}
-
-fn build_filter_re() -> Regex {
+static FILTER_RE: LazyLock<Regex> = LazyLock::new(|| {
     let constant_string = format!(
         r#"(?x)
         (?:{i18n_open}{strdq}{i18n_close}|
@@ -198,7 +189,7 @@ fn build_filter_re() -> Regex {
     ))
     .build()
     .unwrap()
-}
+});
 
 #[derive(Debug, Clone, PartialEq)]
 enum FilterExpressionFilterArg {
@@ -215,11 +206,10 @@ enum FilterExpression {
 }
 
 fn lex_filter_expression(expr: &str) -> Vec<FilterExpression> {
-    let re = get_filter_re();
     let mut tokens = Vec::new();
     let mut upto = 0;
     let mut variable = false;
-    for captures in re.captures_iter(expr) {
+    for captures in (&*FILTER_RE).captures_iter(expr) {
         let start = captures.get(0).unwrap().start();
         if upto != start {
             // Syntax error - ignore it and return whole expression as constant
@@ -325,14 +315,14 @@ fn format_variable(filter_expressions: &[FilterExpression], result: &mut String)
     }
 }
 
+static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
+
 fn fix_template_whitespace(tokens: &mut Vec<Token>) {
-    static LEADING_BLANK_LINES: OnceLock<Regex> = OnceLock::new();
-
-    let re = LEADING_BLANK_LINES.get_or_init(|| Regex::new(r"^(\s*\n)+").unwrap());
-
     if let Some(token) = tokens.first_mut() {
         if token.token_type == TokenType::Text {
-            token.contents = re.replace(&token.contents, "").to_string();
+            token.contents = (&*LEADING_BLANK_LINES)
+                .replace(&token.contents, "")
+                .to_string();
         }
     }
 
