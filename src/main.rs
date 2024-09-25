@@ -7,12 +7,16 @@ use std::sync::LazyLock;
 
 fn main() {
     let args = cli::Args::parse();
+    let exit_code = main_impl(&args, &mut std::io::stderr());
+    std::process::exit(exit_code)
+}
 
+fn main_impl(args: &cli::Args, writer: &mut dyn std::io::Write) -> i32 {
     let target_version: Option<(u8, u8)> = {
         if args.target_version.is_none() {
             None
         } else {
-            let version = args.target_version.unwrap();
+            let version = args.target_version.as_ref().unwrap();
             let parts: Vec<&str> = version.split('.').collect();
             if parts.len() != 2 {
                 panic!("Invalid target version format. Expected 'major.minor'");
@@ -24,17 +28,28 @@ fn main() {
         }
     };
 
-    let mut changed = false;
+    let mut returncode = 0;
     for filename in &args.filenames {
-        let content = fs::read_to_string(filename).expect("Could not open {file}");
-        let formatted = format(&content, target_version);
-        if formatted != content {
-            println!("Rewriting {}", filename);
-            changed = true;
-            fs::write(filename, formatted).expect("Could not write {filename}");
+        match fs::read_to_string(filename) {
+            Ok(content) => {
+                let formatted = format(&content, target_version);
+                if formatted != content {
+                    writeln!(writer, "Rewriting {}", filename).unwrap();
+                    returncode = 1;
+                    fs::write(filename, formatted).expect("Could not write {filename}");
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+                writeln!(writer, "{} is non-utf-8 (not supported)", filename).unwrap();
+                returncode = 1;
+            }
+            Err(e) => {
+                writeln!(writer, "Error reading {}: {}", filename, e).unwrap();
+                returncode = 1;
+            }
         }
     }
-    std::process::exit(if changed { 1 } else { 0 });
+    returncode
 }
 
 // Lexer based on Django’s:
@@ -715,6 +730,38 @@ fn adjust_top_level_block_spacing(tokens: &mut Vec<Token>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    // main
+
+    #[test]
+    fn test_non_utf8_file() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("non_utf8.txt");
+
+        // Create a file with non-UTF-8 content
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(&[0xFF, 0xFE, 0xFD]).unwrap();
+
+        // Capture stderr
+        let mut buffer = Vec::new();
+        let mut writer = std::io::Cursor::new(&mut buffer);
+
+        // Run the main function with our non-UTF-8 file
+        let args = cli::Args {
+            filenames: vec![file_path.to_str().unwrap().to_string()],
+            target_version: None,
+        };
+
+        let returncode = main_impl(&args, &mut writer);
+
+        assert_eq!(returncode, 1);
+
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains("is non-utf-8 (not supported)"));
+    }
 
     // format_variables
 
