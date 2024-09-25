@@ -141,7 +141,7 @@ Rules
 
 Djade implements some rules listed in the Django contribution style guide’s `template style section <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__:
 
-* One space around variables and tags:
+* Single spaces at the start and end of variables and tags:
 
   .. code-block:: diff
 
@@ -174,7 +174,7 @@ Djade implements some rules listed in the Django contribution style guide’s `t
     -{{ egg | crack }}
     +{{ egg|crack }}
 
-* Inside tags, single spaces around tokens:
+* Inside tags, single spaces between tokens:
 
   .. code-block:: diff
 
@@ -213,7 +213,7 @@ Djade also implements some extra rules:
     -
     -
 
-* One space around comment tags:
+* Single spaces at the start and end of comments:
 
   .. code-block:: diff
 
