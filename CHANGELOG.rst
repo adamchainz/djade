@@ -24,7 +24,7 @@ Changelog
 
 * Add Django 3.1+ fixer to migrate ``{% trans %}`` to ``{% translate %}`` and ``{% blocktrans %}`` / ``{% endblocktrans %}`` to ``{% blocktranslate %}`` / ``{% endblocktranslate %}``.
 
-  `PR #52 <https://github.com/adamchainz/djade/pull/52>`__.
+  `PR #53 <https://github.com/adamchainz/djade/pull/53>`__.
 
 * Add Django 3.1+ fixer to migrate ``{% ifequal %}`` / ``{% endifequal %}`` and ``{% ifnotequal %}`` / ``{% endifnotequal %}`` to ``{% if %}`` / ``{% endif %}``.
 
