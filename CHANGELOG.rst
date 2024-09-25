@@ -2,12 +2,19 @@
 Changelog
 =========
 
-* Add formatting of filters in variables:
+* Add formatting of variables:
 
   .. code-block:: diff
 
       -{{ egg | crack }}
       +{{ egg|crack }}
+
+* Add formatting of block tags:
+
+  .. code-block:: diff
+
+      -{% if  breakfast  ==  'scrambled eggs'  %}
+      +{% if breakfast == 'scrambled eggs' %}
 
 * Add unindenting of ``{% extends %}`` tags, and top-level ``{% block %}`` and ``{% endblock %}`` tags where ``{% extends %}`` is used.
 
