@@ -174,6 +174,13 @@ Djade implements some rules listed in the Django contribution style guide’s `t
     -{{ egg | crack }}
     +{{ egg|crack }}
 
+* Inside tags, single spaces around tokens:
+
+  .. code-block:: diff
+
+    -{% if  breakfast  ==  'scrambled eggs'  %}
+    +{% if breakfast == 'scrambled eggs' %}
+
 * Unindent top-level ``{% block %}`` and ``{% endblock %}`` tags when ``{% extends %}`` is used:
 
   .. code-block:: diff
