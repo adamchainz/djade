@@ -249,6 +249,27 @@ Fixers
 
 Djade applies the below fixes based on the target Django version from ``--target-version``.
 
+Django 3.1+: ``trans`` -> ``translate``, ``blocktrans`` / ``endblocktrans`` -> ``blocktranslate`` / ``endblocktranslate``
+-------------------------------------------------------------------------------------------------------------------------
+
+From the `release note <https://docs.djangoproject.com/en/3.1/releases/3.1/#templates>`__:
+
+    The renamed ``translate`` and ``blocktranslate`` template tags are introduced for internationalization in template code.
+    The older ``trans`` and ``blocktrans`` template tags aliases continue to work, and will be retained for the foreseeable future.
+
+Djade updates the deprecated tags appropriately:
+
+.. code-block:: diff
+
+    -{% trans "Egg types" %}
+    +{% translate "Egg types" %}
+
+    -{% blocktrans with colour=egg.colour %}
+    +{% blocktranslate with colour=egg.colour %}
+     This egg is {{ colour }}.
+    -{% endblocktrans %}
+    +{% endblocktranslate %}
+
 Django 3.1+: ``ifequal`` and ``ifnotequal`` -> ``if``
 -----------------------------------------------------
 
