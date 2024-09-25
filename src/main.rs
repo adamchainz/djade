@@ -48,23 +48,17 @@ const VARIABLE_TAG_START: &str = "{{";
 const COMMENT_TAG_START: &str = "{#";
 
 #[derive(Debug, Clone, PartialEq)]
-enum Token {
-    Text {
-        contents: String,
-        lineno: usize,
-    },
-    Variable {
-        filter_expressions: Vec<FilterExpression>,
-        lineno: usize,
-    },
-    Block {
-        bits: Vec<String>,
-        lineno: usize,
-    },
-    Comment {
-        contents: String,
-        lineno: usize,
-    },
+enum TokenType {
+    Text { contents: String },
+    Variable { filter_expression: FilterExpression },
+    Block { bits: Vec<String> },
+    Comment { contents: String },
+}
+
+#[derive(Debug)]
+struct Token {
+    token_type: TokenType,
+    lineno: usize,
 }
 
 fn lex(template_string: &str) -> Vec<Token> {
@@ -109,8 +103,10 @@ fn create_token(
         if token_string.starts_with(BLOCK_TAG_START) {
             if let Some(v) = &verbatim {
                 if content != v {
-                    return Token::Text {
-                        contents: token_string.to_string(),
+                    return Token {
+                        token_type: TokenType::Text {
+                            contents: token_string.to_string(),
+                        },
                         lineno,
                     };
                 }
@@ -118,32 +114,42 @@ fn create_token(
             } else if content.starts_with("verbatim") {
                 *verbatim = Some(format!("end{}", content));
             }
-            Token::Block {
-                bits: split_contents(content),
+            Token {
+                token_type: TokenType::Block {
+                    bits: split_contents(content),
+                },
                 lineno,
             }
         } else if verbatim.is_none() {
             if token_string.starts_with(VARIABLE_TAG_START) {
-                Token::Variable {
-                    filter_expressions: lex_filter_expression(content),
+                Token {
+                    token_type: TokenType::Variable {
+                        filter_expression: lex_filter_expression(content),
+                    },
                     lineno,
                 }
             } else {
                 debug_assert!(token_string.starts_with(COMMENT_TAG_START));
-                Token::Comment {
-                    contents: content.to_string(),
+                Token {
+                    token_type: TokenType::Comment {
+                        contents: content.to_string(),
+                    },
                     lineno,
                 }
             }
         } else {
-            Token::Text {
-                contents: token_string.to_string(),
+            Token {
+                token_type: TokenType::Text {
+                    contents: token_string.to_string(),
+                },
                 lineno,
             }
         }
     } else {
-        Token::Text {
-            contents: token_string.to_string(),
+        Token {
+            token_type: TokenType::Text {
+                contents: token_string.to_string(),
+            },
             lineno,
         }
     }
@@ -190,64 +196,74 @@ static FILTER_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 #[derive(Debug, Clone, PartialEq)]
-enum FilterExpressionFilterArg {
-    None,
+enum Expression {
     Constant(String),
     Variable(String),
+    Unparsed(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum FilterExpression {
-    Unparsed(String),
-    Constant(String),
-    Variable(String),
-    Filter(String, FilterExpressionFilterArg),
+struct FilterExpression {
+    var: Expression,
+    filters: Vec<Filter>,
 }
 
-fn lex_filter_expression(expr: &str) -> Vec<FilterExpression> {
-    let mut tokens = Vec::new();
+#[derive(Debug, Clone, PartialEq)]
+struct Filter {
+    name: String,
+    arg: Option<Expression>,
+}
+
+fn lex_filter_expression(expr: &str) -> FilterExpression {
+    let mut filter_expression = FilterExpression {
+        var: Expression::Unparsed(expr.to_string()),
+        filters: Vec::new(),
+    };
     let mut upto = 0;
     let mut variable = false;
     for captures in (&*FILTER_RE).captures_iter(expr) {
         let start = captures.get(0).unwrap().start();
         if upto != start {
             // Syntax error - ignore it and return whole expression as constant
-            return vec![FilterExpression::Unparsed(expr.to_string())];
+            return filter_expression;
         }
 
         if !variable {
             if let Some(constant) = captures.name("constant") {
-                tokens.push(FilterExpression::Constant(constant.as_str().to_string()));
+                filter_expression.var = Expression::Constant(constant.as_str().to_string());
             } else if let Some(variable) = captures.name("var") {
-                tokens.push(FilterExpression::Variable(variable.as_str().to_string()));
+                filter_expression.var = Expression::Variable(variable.as_str().to_string());
             }
             variable = true;
         } else {
             let filter_name = captures.name("filter_name").unwrap().as_str().to_string();
             if let Some(constant_arg) = captures.name("constant_arg") {
-                tokens.push(FilterExpression::Filter(
-                    filter_name,
-                    FilterExpressionFilterArg::Constant(constant_arg.as_str().to_string()),
-                ));
+                filter_expression.filters.push(Filter {
+                    name: filter_name,
+                    arg: Some(Expression::Constant(constant_arg.as_str().to_string())),
+                });
             } else if let Some(var_arg) = captures.name("var_arg") {
-                tokens.push(FilterExpression::Filter(
-                    filter_name,
-                    FilterExpressionFilterArg::Variable(var_arg.as_str().to_string()),
-                ));
+                filter_expression.filters.push(Filter {
+                    name: filter_name,
+                    arg: Some(Expression::Variable(var_arg.as_str().to_string())),
+                });
             } else {
-                tokens.push(FilterExpression::Filter(
-                    filter_name,
-                    FilterExpressionFilterArg::None,
-                ));
+                filter_expression.filters.push(Filter {
+                    name: filter_name,
+                    arg: None,
+                });
             }
         }
         upto = captures.get(0).unwrap().end();
     }
     if upto != expr.len() {
         // Syntax error - ignore it and return whole expression as constant
-        return vec![FilterExpression::Unparsed(expr.to_string())];
+        return FilterExpression {
+            var: Expression::Unparsed(expr.to_string()),
+            filters: Vec::new(),
+        };
     }
-    tokens
+    filter_expression
 }
 
 static SMART_SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -307,21 +323,19 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     // Build result
     let mut result = String::new();
     for token in tokens {
-        match token {
-            Token::Text { contents, .. } => result.push_str(&contents),
-            Token::Variable {
-                filter_expressions, ..
-            } => {
+        match token.token_type {
+            TokenType::Text { contents } => result.push_str(&contents),
+            TokenType::Variable { filter_expression } => {
                 result.push_str("{{ ");
-                format_variable(filter_expressions, &mut result);
+                format_variable(filter_expression, &mut result);
                 result.push_str(" }}");
             }
-            Token::Block { bits, .. } => {
+            TokenType::Block { bits } => {
                 result.push_str("{% ");
                 result.push_str(&bits.join(" "));
                 result.push_str(" %}");
             }
-            Token::Comment { contents, .. } => {
+            TokenType::Comment { contents } => {
                 result.push_str("{# ");
                 result.push_str(&contents);
                 result.push_str(" #}");
@@ -332,31 +346,32 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
 }
 
 #[inline(always)]
-fn format_variable(filter_expressions: Vec<FilterExpression>, result: &mut String) {
-    for expr in filter_expressions {
-        match expr {
-            FilterExpression::Unparsed(value) => {
-                result.push_str(&value);
-            }
-            FilterExpression::Constant(constant) => {
-                result.push_str(&constant);
-            }
-            FilterExpression::Variable(variable) => {
-                result.push_str(&variable);
-            }
-            FilterExpression::Filter(filter_name, arg) => {
-                result.push('|');
-                result.push_str(&filter_name);
-                match arg {
-                    FilterExpressionFilterArg::None => {}
-                    FilterExpressionFilterArg::Constant(constant) => {
-                        result.push(':');
-                        result.push_str(&constant);
-                    }
-                    FilterExpressionFilterArg::Variable(variable) => {
-                        result.push(':');
-                        result.push_str(&variable);
-                    }
+fn format_variable(filter_expression: FilterExpression, result: &mut String) {
+    match filter_expression.var {
+        Expression::Constant(value) => {
+            result.push_str(&value);
+        }
+        Expression::Variable(value) => {
+            result.push_str(&value);
+        }
+        Expression::Unparsed(value) => {
+            result.push_str(&value);
+        }
+    }
+    for filter in filter_expression.filters {
+        result.push('|');
+        result.push_str(&filter.name);
+        if let Some(arg) = filter.arg {
+            result.push(':');
+            match arg {
+                Expression::Constant(value) => {
+                    result.push_str(&value);
+                }
+                Expression::Variable(value) => {
+                    result.push_str(&value);
+                }
+                Expression::Unparsed(value) => {
+                    result.push_str(&value);
                 }
             }
         }
@@ -365,18 +380,20 @@ fn format_variable(filter_expressions: Vec<FilterExpression>, result: &mut Strin
 
 static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
 fn fix_template_whitespace(tokens: &mut Vec<Token>) {
-    if let Some(mut token) = tokens.first_mut() {
-        if let Token::Text { contents, .. } = &mut token {
+    if let Some(token) = tokens.first_mut() {
+        if let TokenType::Text { contents } = &mut token.token_type {
             *contents = (&*LEADING_BLANK_LINES).replace(contents, "").to_string();
         }
     }
 
-    if let Some(mut token) = tokens.last_mut() {
-        if let Token::Text { contents, .. } = &mut token {
+    if let Some(token) = tokens.last_mut() {
+        if let TokenType::Text { contents } = &mut token.token_type {
             *contents = contents.trim_end().to_string() + "\n";
         } else {
-            tokens.push(Token::Text {
-                contents: "\n".to_string(),
+            tokens.push(Token {
+                token_type: TokenType::Text {
+                    contents: "\n".to_string(),
+                },
                 lineno: 0,
             });
         }
@@ -386,14 +403,14 @@ fn fix_template_whitespace(tokens: &mut Vec<Token>) {
 fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
     let mut i = 0;
     while i < tokens.len() {
-        if let Token::Block { ref bits, .. } = tokens[i] {
+        if let TokenType::Block { ref bits } = tokens[i].token_type {
             if bits[0] == "load" {
                 let mut j = i + 1;
                 let mut to_merge = vec![i];
                 while j < tokens.len() {
-                    match &tokens[j] {
-                        Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
-                        Token::Block { bits, .. } if bits[0] == "load" => {
+                    match &tokens[j].token_type {
+                        TokenType::Text { contents } if contents.trim().is_empty() => j += 1,
+                        TokenType::Block { bits } if bits[0] == "load" => {
                             to_merge.push(j);
                             j += 1
                         }
@@ -401,7 +418,7 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
                     }
                 }
                 if j > 0 {
-                    if let Token::Text { .. } = tokens[j - 1] {
+                    if let TokenType::Text { .. } = tokens[j - 1].token_type {
                         j -= 1;
                     }
                 }
@@ -409,7 +426,7 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
                 let mut parts: Vec<String> = to_merge
                     .iter()
                     .filter_map(|&idx| {
-                        if let Token::Block { bits, .. } = &tokens[idx] {
+                        if let TokenType::Block { bits } = &tokens[idx].token_type {
                             Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
                         } else {
                             None
@@ -434,7 +451,7 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
                 parts.dedup();
                 parts.insert(0, "load".to_string());
 
-                if let Token::Block { bits, .. } = &mut tokens[i] {
+                if let TokenType::Block { bits } = &mut tokens[i].token_type {
                     bits.clear();
                     bits.extend(parts);
                 }
@@ -450,16 +467,16 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
     let mut block_stack = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
-        let update = match &tokens[i] {
-            Token::Block { bits, lineno } if bits[0] == "block" => {
+        let update = match &tokens[i].token_type {
+            TokenType::Block { bits } if bits[0] == "block" => {
                 let label = bits.get(1).cloned();
-                block_stack.push((label, *lineno));
+                block_stack.push((i, label));
                 None
             }
-            Token::Block { bits, lineno } if bits[0] == "endblock" => {
-                if let Some((label, start_lineno)) = block_stack.pop() {
+            TokenType::Block { bits } if bits[0] == "endblock" => {
+                if let Some((start, label)) = block_stack.pop() {
                     if bits.len() == 1 || (bits.len() == 2 && label.as_ref() == bits.get(1)) {
-                        let same_line = start_lineno == *lineno;
+                        let same_line = tokens[start].lineno == tokens[i].lineno;
                         Some(if same_line {
                             vec!["endblock".to_string()]
                         } else {
@@ -475,12 +492,7 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
             _ => None,
         };
         if let Some(new_bits) = update {
-            if let Token::Block { lineno, .. } = tokens[i] {
-                tokens[i] = Token::Block {
-                    bits: new_bits,
-                    lineno,
-                };
-            }
+            tokens[i].token_type = TokenType::Block { bits: new_bits };
         }
         i += 1;
     }
@@ -491,8 +503,8 @@ fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
     let mut block_depth = 0;
 
     for i in 0..tokens.len() {
-        match &tokens[i] {
-            Token::Block { bits, .. } => {
+        match &tokens[i].token_type {
+            TokenType::Block { bits } => {
                 if bits.len() >= 1 && bits[0] == "extends" {
                     after_extends = true;
                     unindent_token(tokens, i);
@@ -514,7 +526,7 @@ fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
 }
 fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
     if index > 0 {
-        if let Token::Text { contents, .. } = &mut tokens[index - 1] {
+        if let TokenType::Text { contents } = &mut tokens[index - 1].token_type {
             *contents = contents.trim_end_matches(&[' ', '\t']).to_string();
         }
     }
