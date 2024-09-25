@@ -22,6 +22,8 @@ Changelog
 
 * Add spacing adjustment of top-level ``{% block %}`` and ``{% endblock %}`` tags where ``{% extends %}`` is used.
 
+  `PR #55 <https://github.com/adamchainz/djade/pull/55>`__.
+
 * Add ``--target-version`` option to specify target Django version.
 
 * Add Django 4.2+ fixer to migrate ``{% if %}`` with ``length_is`` to use ``length`` and ```==``.
