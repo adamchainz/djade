@@ -49,16 +49,23 @@ const COMMENT_TAG_START: &str = "{#";
 
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
-    Text,
-    Variable(Vec<FilterExpression>),
-    Block { bits: Vec<String> },
-    Comment,
+    Text {
+        contents: String,
+    },
+    Variable {
+        filter_expressions: Vec<FilterExpression>,
+    },
+    Block {
+        bits: Vec<String>,
+    },
+    Comment {
+        contents: String,
+    },
 }
 
 #[derive(Debug)]
 struct Token {
     token_type: TokenType,
-    contents: String,
     lineno: usize,
 }
 
@@ -105,8 +112,9 @@ fn create_token(
             if let Some(v) = &verbatim {
                 if content != v {
                     return Token {
-                        token_type: TokenType::Text,
-                        contents: token_string.to_string(),
+                        token_type: TokenType::Text {
+                            contents: token_string.to_string(),
+                        },
                         lineno,
                     };
                 }
@@ -118,36 +126,38 @@ fn create_token(
                 token_type: TokenType::Block {
                     bits: split_contents(content),
                 },
-                contents: content.to_string(),
                 lineno,
             }
         } else if verbatim.is_none() {
             if token_string.starts_with(VARIABLE_TAG_START) {
-                let filter_expressions = lex_filter_expression(content);
                 Token {
-                    token_type: TokenType::Variable(filter_expressions),
-                    contents: content.to_string(),
+                    token_type: TokenType::Variable {
+                        filter_expressions: lex_filter_expression(content),
+                    },
                     lineno,
                 }
             } else {
                 debug_assert!(token_string.starts_with(COMMENT_TAG_START));
                 Token {
-                    token_type: TokenType::Comment,
-                    contents: content.to_string(),
+                    token_type: TokenType::Comment {
+                        contents: content.to_string(),
+                    },
                     lineno,
                 }
             }
         } else {
             Token {
-                token_type: TokenType::Text,
-                contents: token_string.to_string(),
+                token_type: TokenType::Text {
+                    contents: token_string.to_string(),
+                },
                 lineno,
             }
         }
     } else {
         Token {
-            token_type: TokenType::Text,
-            contents: token_string.to_string(),
+            token_type: TokenType::Text {
+                contents: token_string.to_string(),
+            },
             lineno,
         }
     }
@@ -312,8 +322,8 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     let mut result = String::new();
     for token in tokens {
         match token.token_type {
-            TokenType::Text => result.push_str(&token.contents),
-            TokenType::Variable(ref filter_expressions) => {
+            TokenType::Text { contents } => result.push_str(&contents),
+            TokenType::Variable { filter_expressions } => {
                 result.push_str("{{ ");
                 format_variable(filter_expressions, &mut result);
                 result.push_str(" }}");
@@ -323,9 +333,9 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
                 result.push_str(&bits.join(" "));
                 result.push_str(" %}");
             }
-            TokenType::Comment => {
+            TokenType::Comment { contents } => {
                 result.push_str("{# ");
-                result.push_str(&token.contents);
+                result.push_str(&contents);
                 result.push_str(" #}");
             }
         }
@@ -334,30 +344,30 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
 }
 
 #[inline(always)]
-fn format_variable(filter_expressions: &[FilterExpression], result: &mut String) {
+fn format_variable(filter_expressions: Vec<FilterExpression>, result: &mut String) {
     for expr in filter_expressions {
         match expr {
             FilterExpression::Unparsed(value) => {
-                result.push_str(value);
+                result.push_str(&value);
             }
             FilterExpression::Constant(constant) => {
-                result.push_str(constant);
+                result.push_str(&constant);
             }
             FilterExpression::Variable(variable) => {
-                result.push_str(variable);
+                result.push_str(&variable);
             }
             FilterExpression::Filter(filter_name, arg) => {
                 result.push('|');
-                result.push_str(filter_name);
+                result.push_str(&filter_name);
                 match arg {
                     FilterExpressionFilterArg::None => {}
                     FilterExpressionFilterArg::Constant(constant) => {
                         result.push(':');
-                        result.push_str(constant);
+                        result.push_str(&constant);
                     }
                     FilterExpressionFilterArg::Variable(variable) => {
                         result.push(':');
-                        result.push_str(variable);
+                        result.push_str(&variable);
                     }
                 }
             }
@@ -366,23 +376,21 @@ fn format_variable(filter_expressions: &[FilterExpression], result: &mut String)
 }
 
 static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
-
 fn fix_template_whitespace(tokens: &mut Vec<Token>) {
     if let Some(token) = tokens.first_mut() {
-        if token.token_type == TokenType::Text {
-            token.contents = (&*LEADING_BLANK_LINES)
-                .replace(&token.contents, "")
-                .to_string();
+        if let TokenType::Text { contents } = &mut token.token_type {
+            *contents = (&*LEADING_BLANK_LINES).replace(contents, "").to_string();
         }
     }
 
     if let Some(token) = tokens.last_mut() {
-        if token.token_type == TokenType::Text {
-            token.contents = token.contents.trim_end().to_string() + "\n";
+        if let TokenType::Text { contents } = &mut token.token_type {
+            *contents = contents.trim_end().to_string() + "\n";
         } else {
             tokens.push(Token {
-                token_type: TokenType::Text,
-                contents: "\n".to_string(),
+                token_type: TokenType::Text {
+                    contents: "\n".to_string(),
+                },
                 lineno: 0,
             });
         }
@@ -398,16 +406,18 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
                 let mut to_merge = vec![i];
                 while j < tokens.len() {
                     match &tokens[j].token_type {
-                        TokenType::Text if tokens[j].contents.trim().is_empty() => j += 1,
+                        TokenType::Text { contents } if contents.trim().is_empty() => j += 1,
                         TokenType::Block { bits } if bits[0] == "load" => {
                             to_merge.push(j);
-                            j += 1;
+                            j += 1
                         }
                         _ => break,
                     }
                 }
-                if j > 0 && matches!(tokens[j - 1].token_type, TokenType::Text) {
-                    j -= 1;
+                if j > 0 {
+                    if let TokenType::Text { .. } = tokens[j - 1].token_type {
+                        j -= 1;
+                    }
                 }
 
                 let mut parts: Vec<String> = to_merge
@@ -511,13 +521,11 @@ fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
         }
     }
 }
-
 fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
-    if index > 0 && tokens[index - 1].token_type == TokenType::Text {
-        tokens[index - 1].contents = tokens[index - 1]
-            .contents
-            .trim_end_matches(&[' ', '\t'])
-            .to_string();
+    if index > 0 {
+        if let TokenType::Text { contents } = &mut tokens[index - 1].token_type {
+            *contents = contents.trim_end_matches(&[' ', '\t']).to_string();
+        }
     }
 }
 
