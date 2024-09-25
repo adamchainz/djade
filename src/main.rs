@@ -313,6 +313,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     update_load_tags(&mut tokens, target_version);
     fix_endblock_labels(&mut tokens);
     migrate_length_is(&mut tokens, target_version);
+    migrate_empty_json_script(&mut tokens, target_version);
     migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
     unindent_extends_and_blocks(&mut tokens);
@@ -520,6 +521,29 @@ fn migrate_length_is(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) 
                 bits[1] = format!("{}|length", var1);
                 bits.push("==".to_string());
                 bits.push(var2.to_string());
+            }
+        }
+    }
+}
+
+fn migrate_empty_json_script(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+    if target_version.is_none() || target_version.unwrap() < (4, 1) {
+        return;
+    }
+
+    for token in tokens.iter_mut() {
+        if let Token::Variable {
+            filter_expression, ..
+        } = token
+        {
+            for filter in &mut filter_expression.filters {
+                if filter.name == "json_script" {
+                    if let Some(Expression::Constant(arg)) = &filter.arg {
+                        if arg == "\"\"" || arg == "''" {
+                            filter.arg = None;
+                        }
+                    }
+                }
             }
         }
     }
@@ -985,6 +1009,50 @@ mod tests {
             Some((4, 2)),
         );
         assert_eq!(formatted, "{% if eggs|length_is:1 and spam %}{% endif %}\n");
+    }
+
+    // migrate_empty_json_script
+
+    #[test]
+    fn test_migrate_empty_json_script_double_quotes() {
+        let formatted = format("{{ egg_data|json_script:\"\" }}\n", Some((4, 1)));
+        assert_eq!(formatted, "{{ egg_data|json_script }}\n");
+    }
+
+    #[test]
+    fn test_migrate_empty_json_script_single_quotes() {
+        let formatted = format("{{ egg_data|json_script:'' }}\n", Some((4, 1)));
+        assert_eq!(formatted, "{{ egg_data|json_script }}\n");
+    }
+
+    #[test]
+    fn test_migrate_empty_json_script_not_empty() {
+        let formatted = format("{{ egg_data|json_script:'egg_id' }}\n", Some((4, 1)));
+        assert_eq!(formatted, "{{ egg_data|json_script:'egg_id' }}\n");
+    }
+
+    #[test]
+    fn test_migrate_empty_json_script_old_django() {
+        let formatted = format("{{ egg_data|json_script:\"\" }}\n", Some((4, 0)));
+        assert_eq!(formatted, "{{ egg_data|json_script:\"\" }}\n");
+    }
+
+    #[test]
+    fn test_migrate_empty_json_script_no_version() {
+        let formatted = format("{{ egg_data|json_script:\"\" }}\n", None);
+        assert_eq!(formatted, "{{ egg_data|json_script:\"\" }}\n");
+    }
+
+    #[test]
+    fn test_migrate_empty_json_script_after_another_filter() {
+        let formatted = format("{{ egg_data|upper|json_script:\"\" }}\n", Some((4, 1)));
+        assert_eq!(formatted, "{{ egg_data|upper|json_script }}\n");
+    }
+
+    #[test]
+    fn test_migrate_empty_json_script_before_another_filter() {
+        let formatted = format("{{ egg_data|json_script:\"\"|safe }}\n", Some((4, 1)));
+        assert_eq!(formatted, "{{ egg_data|json_script|safe }}\n");
     }
 
     // migrate_ifequal_tags

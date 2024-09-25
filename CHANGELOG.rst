@@ -30,6 +30,10 @@ Changelog
 
   `PR #54 <https://github.com/adamchainz/djade/pull/54>`__.
 
+* Add Django 4.1 fixer to migrate use of the ``json_script`` filter with an empty string to drop the argument.
+
+  `PR #56 <https://github.com/adamchainz/djade/pull/56>`__.
+
 * Add Django 3.1+ fixer to migrate ``{% trans %}`` to ``{% translate %}`` and ``{% blocktrans %}`` / ``{% endblocktrans %}`` to ``{% blocktranslate %}`` / ``{% endblocktranslate %}``.
 
   `PR #53 <https://github.com/adamchainz/djade/pull/53>`__.

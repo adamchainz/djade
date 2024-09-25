@@ -277,6 +277,20 @@ Djade updates use of the deprecated filter within ``if`` tags, without other con
     -{% if eggs|length_is:1 %}
     +{% if eggs|length == 1 %}
 
+Django 4.1+: empty ID ``json_script`` fixer
+-------------------------------------------
+
+From the `release note <https://docs.djangoproject.com/en/4.1/releases/4.1/#templates>`__:
+
+    The HTML ``<script>`` element ``id`` attribute is no longer required when wrapping the ``json_script`` template filter.
+
+Djade removes the argument where ``json_script`` is passed an empty string, to avoid emitting ``id=""``:
+
+.. code-block:: diff
+
+    -{% egg_data|json_script:"" %}
+    +{% egg_data|json_script %}
+
 Django 3.1+: ``trans`` -> ``translate``, ``blocktrans`` / ``endblocktrans`` -> ``blocktranslate`` / ``endblocktranslate``
 -------------------------------------------------------------------------------------------------------------------------
 
