@@ -22,6 +22,10 @@ Changelog
 
 * Add ``--target-version`` option to specify target Django version.
 
+* Add Django 4.2+ fixer to migrate ``{% if %}`` with ``length_is`` to use ``length`` and ```==``.
+
+  `PR #54 <https://github.com/adamchainz/djade/pull/54>`__.
+
 * Add Django 3.1+ fixer to migrate ``{% trans %}`` to ``{% translate %}`` and ``{% blocktrans %}`` / ``{% endblocktrans %}`` to ``{% blocktranslate %}`` / ``{% endblocktranslate %}``.
 
   `PR #53 <https://github.com/adamchainz/djade/pull/53>`__.

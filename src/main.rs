@@ -312,6 +312,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     fix_template_whitespace(&mut tokens);
     update_load_tags(&mut tokens, target_version);
     fix_endblock_labels(&mut tokens);
+    migrate_length_is(&mut tokens, target_version);
     migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
     unindent_extends_and_blocks(&mut tokens);
@@ -496,6 +497,30 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
             }
         }
         i += 1;
+    }
+}
+
+static LENGTH_IS_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"([\w.]+)\|length_is:(\w+)").unwrap());
+
+fn migrate_length_is(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+    if target_version.is_none() || target_version.unwrap() < (4, 2) {
+        return;
+    }
+
+    for token in tokens.iter_mut() {
+        if let Token::Block { bits, .. } = token {
+            if bits.len() != 2 {
+                continue;
+            }
+            if let Some(captures) = LENGTH_IS_RE.captures(&bits[1]) {
+                let var1 = captures.get(1).unwrap().as_str().to_string();
+                let var2 = captures.get(2).unwrap().as_str().to_string();
+                bits[1] = format!("{}|length", var1);
+                bits.push("==".to_string());
+                bits.push(var2.to_string());
+            }
+        }
     }
 }
 
@@ -868,6 +893,56 @@ mod tests {
             formatted,
             "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock h %}\n"
         );
+    }
+
+    // migrate_length_is
+
+    #[test]
+    fn test_length_is_not_migrated_old_django() {
+        let formatted = format("{% if eggs|length_is:1 %}{% endif %}\n", Some((4, 1)));
+        assert_eq!(formatted, "{% if eggs|length_is:1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_migrated() {
+        let formatted = format("{% if eggs|length_is:1 %}{% endif %}\n", Some((4, 2)));
+        assert_eq!(formatted, "{% if eggs|length == 1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_when_no_version_specified() {
+        let formatted = format("{% if eggs|length_is:1 %}{% endif %}\n", None);
+        assert_eq!(formatted, "{% if eggs|length_is:1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_migrated_with_variable() {
+        let formatted = format("{% if eggs|length_is:n %}{% endif %}\n", Some((4, 2)));
+        assert_eq!(formatted, "{% if eggs|length == n %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_migrated_with_complex_variable() {
+        let formatted = format(
+            "{% if basket.eggs|length_is:1 %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(formatted, "{% if basket.eggs|length == 1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_in_variable_tag() {
+        let formatted = format("{{ eggs|length_is:1 }}\n", Some((4, 2)));
+        assert_eq!(formatted, "{{ eggs|length_is:1 }}\n");
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_with_other_conditions() {
+        let formatted = format(
+            "{% if eggs|length_is:1 and spam %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(formatted, "{% if eggs|length_is:1 and spam %}{% endif %}\n");
     }
 
     // migrate_ifequal_tags

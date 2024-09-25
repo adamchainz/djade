@@ -249,6 +249,20 @@ Fixers
 
 Djade applies the below fixes based on the target Django version from ``--target-version``.
 
+Django 4.2+: ``length_is`` -> ``length``
+----------------------------------------
+
+From the `release note <https://docs.djangoproject.com/en/4.2/releases/4.2/#id1>`__:
+
+    The ``length_is`` template filter is deprecated in favor of ``length`` and the ``==`` operator within an ``{% if %}`` tag.
+
+Djade updates use of the deprecated filter within ``if`` tags, without other conditions, appropriately:
+
+.. code-block:: diff
+
+    -{% if eggs|length_is:1 %}
+    +{% if eggs|length == 1 %}
+
 Django 3.1+: ``trans`` -> ``translate``, ``blocktrans`` / ``endblocktrans`` -> ``blocktranslate`` / ``endblocktranslate``
 -------------------------------------------------------------------------------------------------------------------------
 
