@@ -312,6 +312,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     fix_template_whitespace(&mut tokens);
     update_load_tags(&mut tokens, target_version);
     fix_endblock_labels(&mut tokens);
+    migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
     unindent_extends_and_blocks(&mut tokens);
 
@@ -495,6 +496,29 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
             }
         }
         i += 1;
+    }
+}
+
+fn migrate_translation_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+    if target_version.is_none() || target_version.unwrap() < (3, 1) {
+        return;
+    }
+
+    for token in tokens.iter_mut() {
+        if let Token::Block { bits, .. } = token {
+            match bits[0].as_str() {
+                "trans" => {
+                    bits[0] = "translate".to_string();
+                }
+                "blocktrans" => {
+                    bits[0] = "blocktranslate".to_string();
+                }
+                "endblocktrans" => {
+                    bits[0] = "endblocktranslate".to_string();
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -947,6 +971,95 @@ mod tests {
         assert_eq!(
             formatted,
             "{% if a == b %}\n{% if b != c %}\n{% endif %}\n{% endif %}\n"
+        );
+    }
+
+    // migrate_translation_tags
+
+    #[test]
+    fn test_trans_not_migrated_old_django() {
+        let formatted = format("{% trans 'Hello' %}\n", Some((3, 0)));
+        assert_eq!(formatted, "{% trans 'Hello' %}\n");
+    }
+
+    #[test]
+    fn test_trans_migrated() {
+        let formatted = format("{% trans 'Hello' %}\n", Some((3, 1)));
+        assert_eq!(formatted, "{% translate 'Hello' %}\n");
+    }
+
+    #[test]
+    fn test_blocktrans_not_migrated_old_django() {
+        let formatted = format("{% blocktrans %}Hello{% endblocktrans %}\n", Some((3, 0)));
+        assert_eq!(formatted, "{% blocktrans %}Hello{% endblocktrans %}\n");
+    }
+
+    #[test]
+    fn test_blocktrans_migrated() {
+        let formatted = format("{% blocktrans %}Hello{% endblocktrans %}\n", Some((3, 1)));
+        assert_eq!(
+            formatted,
+            "{% blocktranslate %}Hello{% endblocktranslate %}\n"
+        );
+    }
+
+    #[test]
+    fn test_blocktrans_with_args_migrated() {
+        let formatted = format(
+            "{% blocktrans with name='John' %}Hello {{ name }}{% endblocktrans %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name='John' %}Hello {{ name }}{% endblocktranslate %}\n"
+        );
+    }
+
+    #[test]
+    fn test_multiple_translation_tags_migrated() {
+        let formatted = format(
+            "{% trans 'Hello' %}\n{% blocktrans %}World{% endblocktrans %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% translate 'Hello' %}\n{% blocktranslate %}World{% endblocktranslate %}\n"
+        );
+    }
+
+    #[test]
+    fn test_translation_tags_not_migrated_when_no_version_specified() {
+        let formatted = format(
+            "{% trans 'Hello' %}\n{% blocktrans %}World{% endblocktrans %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% trans 'Hello' %}\n{% blocktrans %}World{% endblocktrans %}\n"
+        );
+    }
+
+    #[test]
+    fn test_translation_tags_within_other_blocks() {
+        let formatted = format(
+            "{% if condition %}\n  {% trans 'Hello' %}\n{% endif %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if condition %}\n  {% translate 'Hello' %}\n{% endif %}\n"
+        );
+    }
+
+    #[test]
+    fn test_translation_tags_with_filters() {
+        let formatted = format(
+            "{% blocktrans trimmed %}\n  Hello\n{% endblocktrans %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate trimmed %}\n  Hello\n{% endblocktranslate %}\n"
         );
     }
 
