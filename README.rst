@@ -236,13 +236,27 @@ Djade also implements some extra rules:
     -{% load frittata %}
     +{% load frittata omelette %}
 
-
 * Unindent ``{% extends %}`` tags:
 
   .. code-block:: diff
 
     -  {% extends 'egg.html' %}
     +{% extends 'egg.html' %}
+
+* Exactly one blank line between top-level ``{% block %}`` and ``{% endblock %}`` tags when ``{% extends %}`` is used:
+
+.. code-block:: diff
+
+     {% extends 'egg.html' %}
+
+    -
+     {% block yolk %}
+       ...
+     {% endblock yolk %}
+    +
+     {% block white %}
+       ...
+     {% endblock white %}
 
 Fixers
 ======

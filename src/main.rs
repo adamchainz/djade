@@ -316,6 +316,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
     unindent_extends_and_blocks(&mut tokens);
+    adjust_top_level_block_spacing(&mut tokens);
 
     // Build result
     let mut result = String::new();
@@ -643,6 +644,47 @@ fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
         if let Token::Text { contents, .. } = &mut tokens[index - 1] {
             *contents = contents.trim_end_matches(&[' ', '\t']).to_string();
         }
+    }
+}
+
+fn adjust_top_level_block_spacing(tokens: &mut Vec<Token>) {
+    let mut has_extends = false;
+    let mut depth = 0;
+    let mut last_top_level_tag = None;
+    let mut i = 0;
+
+    while i < tokens.len() {
+        if let Token::Block { bits, .. } = &tokens[i] {
+            match bits[0].as_str() {
+                "extends" => {
+                    has_extends = true;
+                    last_top_level_tag = Some(i);
+                }
+                "block" => {
+                    if has_extends && depth == 0 {
+                        if let Some(last_end) = last_top_level_tag {
+                            if last_end == i - 2 {
+                                if let Token::Text { contents, .. } = &mut tokens[i - 1] {
+                                    if contents.trim().is_empty() {
+                                        *contents = "\n\n".to_string();
+                                    }
+                                }
+                            }
+                        }
+                        last_top_level_tag = Some(i);
+                    }
+                    depth += 1;
+                }
+                "endblock" => {
+                    depth -= 1;
+                    if has_extends && depth == 0 {
+                        last_top_level_tag = Some(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        i += 1;
     }
 }
 
@@ -1149,19 +1191,19 @@ mod tests {
     #[test]
     fn test_format_top_level_blocks_unindented() {
         let formatted = format(
-            "{% extends 'egg.html' %}\n  {% block yolk %}\n    yellow\n  {% endblock yolk %}\n",
+            "{% extends 'egg.html' %}\n\n  {% block yolk %}\n    yellow\n  {% endblock yolk %}\n",
             None,
         );
         assert_eq!(
             formatted,
-            "{% extends 'egg.html' %}\n{% block yolk %}\n    yellow\n{% endblock yolk %}\n"
+            "{% extends 'egg.html' %}\n\n{% block yolk %}\n    yellow\n{% endblock yolk %}\n"
         );
     }
 
     #[test]
     fn test_format_second_level_blocks_indented() {
-        let formatted = format("{% extends 'egg.html' %}\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n");
+        let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n");
     }
 
     #[test]
@@ -1178,8 +1220,70 @@ mod tests {
 
     #[test]
     fn test_unindent_multiple_blocks() {
-        let formatted = format("{% extends 'egg.html' %}\n  {% block yolk %}\n  yellow\n  {% endblock yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n{% block yolk %}\n  yellow\n{% endblock yolk %}\n{% block white %}\n    protein\n{% endblock white %}\n");
+        let formatted = format("{% extends 'egg.html' %}\n\n  {% block yolk %}\n  yellow\n  {% endblock yolk %}\n\n  {% block white %}\n    protein\n  {% endblock white %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}\n  yellow\n{% endblock yolk %}\n\n{% block white %}\n    protein\n{% endblock white %}\n");
+    }
+
+    // adjust_top_level_block_spacing
+
+    #[test]
+    fn test_adjust_top_level_block_spacing_no_change() {
+        let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_adjust_top_level_block_spacing_add_line() {
+        let formatted = format("{% extends 'egg.html' %}\n{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_adjust_top_level_block_spacing_remove_extra_lines() {
+        let formatted = format("{% extends 'egg.html' %}\n\n\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_adjust_top_level_block_spacing_nested_blocks() {
+        let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_adjust_top_level_block_spacing_no_extends() {
+        let formatted = format(
+            "{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n"
+        );
+    }
+
+    #[test]
+    fn test_adjust_top_level_block_spacing_content() {
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n"
+        );
+    }
+
+    #[test]
+    fn test_adjust_top_level_block_spacing_comment() {
+        let formatted = format(
+            "{% extends 'egg.html' %}\n{# bla #}\n{% block yolk %}Sunny side up{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n{# bla #}\n{% block yolk %}Sunny side up{% endblock %}\n"
+        );
     }
 
     // format output phase
