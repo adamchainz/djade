@@ -48,7 +48,7 @@ Python 3.8 to 3.13 supported.
 pre-commit hook
 ---------------
 
-You can also install django-upgrade as a `pre-commit <https://pre-commit.com/>`__ hook.
+You can also install Djade as a `pre-commit <https://pre-commit.com/>`__ hook.
 
 **First,** add the following to the ``repos`` section of your ``.pre-commit-config.yaml`` file (`docs <https://pre-commit.com/#plugins>`__):
 
@@ -60,10 +60,10 @@ You can also install django-upgrade as a `pre-commit <https://pre-commit.com/>`_
         -   id: djade
             args: [--target-version, "5.1"]  # Replace with Django version
 
-The separate repository is used to enable installation without compiling the Rust code.
+The separate repository enables installation without compiling the Rust code.
 
 The default configuration uses pre-commit’s |files option|__ to pick up on any file in a directory called ``templates`` (`source <https://github.com/adamchainz/djade-pre-commit/blob/main/.pre-commit-hooks.yaml>`__).
-You may wish to override this if you have templates in different directories, by adding ``files`` to the hook configuration in your ``.pre-commit-config.yaml`` file.
+You may wish to override this if you have templates in different directories by adding ``files`` to the hook configuration in your ``.pre-commit-config.yaml`` file.
 
 .. |files option| replace:: ``files`` option
 __ https://pre-commit.com/#creating-new-hooks
@@ -83,13 +83,13 @@ This will prevent the initial formatting commit from showing up in ``git blame``
 .. |.git-blame-ignore-revs file| replace:: ``.git-blame-ignore-revs`` file
 __ https://docs.github.com/en/repositories/working-with-files/using-files/viewing-a-file#ignore-commits-in-the-blame-view
 
-Keep the hook installed in order to continue formatting your templates.
+Keep the hook installed to continue formatting your templates.
 pre-commit’s ``autoupdate`` command will upgrade Djade so you can take advantage of future features.
 
 Usage
 =====
 
-``djade`` is a commandline tool that rewrites files in place.
+``djade`` is a command line tool that rewrites files in place.
 Pass a list of template files to format them:
 
 .. code-block:: console
@@ -107,7 +107,7 @@ Add the ``--target-version`` option with your Django version as ``<major>.<minor
     Rewriting templates/eggs/quail.html
 
 Djade does not have any ability to recurse through directories.
-Use the pre-commit integration, globbing, or another technique for applying to many files.
+Use the pre-commit integration, globbing, or another technique to apply it to many files.
 For example, |with git ls-files pipe xargs|_:
 
 .. |with git ls-files pipe xargs| replace:: with ``git ls-files | xargs``
@@ -136,10 +136,20 @@ Optional: the version of Django to target, in the format ``<major>.<minor>``.
 If provided, Djade enables its fixers for versions up to and including the target version.
 See the list of available versions with ``djade  --help``.
 
-Rules
-=====
+Formatting
+==========
 
-Djade implements some rules listed in the Django contribution style guide’s `template style section <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__:
+Djade aims to format Django template syntax in a consistent, clean way.
+It wants to be like `Black <https://black.readthedocs.io/en/stable/>`__: opinionated and free of configuration.
+Djade’s style is based on the rules listed in the Django contribution style guide’s `template style section <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__, plus some more.
+
+Djade does not aim to format the host language of templates (HTML, etc.).
+That is a much broader scope and hard to do without semantic changes.
+For example, whitespace is significant in some HTML contexts, such as in ``<pre>`` tags, so even adjusting indentation can affect the meaning.
+
+Below are the rules that Djade implements.
+
+Rules from the Django style guide:
 
 * Single spaces at the start and end of variables and tags:
 
@@ -194,7 +204,7 @@ Djade implements some rules listed in the Django contribution style guide’s `t
     -  {% endblock yolk %}
     +{% endblock yolk %}
 
-Djade also implements some extra rules:
+Extra rules:
 
 * No leading empty lines:
 
@@ -270,7 +280,7 @@ From the `release note <https://docs.djangoproject.com/en/4.2/releases/4.2/#id1>
 
     The ``length_is`` template filter is deprecated in favor of ``length`` and the ``==`` operator within an ``{% if %}`` tag.
 
-Djade updates use of the deprecated filter within ``if`` tags, without other conditions, appropriately:
+Djade updates usage of the deprecated filter within ``if`` tags, without other conditions, appropriately:
 
 .. code-block:: diff
 
