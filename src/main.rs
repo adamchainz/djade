@@ -51,7 +51,7 @@ const COMMENT_TAG_START: &str = "{#";
 enum TokenType {
     Text,
     Variable(Vec<FilterExpression>),
-    Block,
+    Block { bits: Vec<String> },
     Comment,
 }
 
@@ -115,7 +115,9 @@ fn create_token(
                 *verbatim = Some(format!("end{}", content));
             }
             Token {
-                token_type: TokenType::Block,
+                token_type: TokenType::Block {
+                    bits: split_contents(content),
+                },
                 contents: content.to_string(),
                 lineno,
             }
@@ -200,6 +202,7 @@ enum FilterExpressionFilterArg {
 
 #[derive(Debug, Clone, PartialEq)]
 enum FilterExpression {
+    Unparsed(String),
     Constant(String),
     Variable(String),
     Filter(String, FilterExpressionFilterArg),
@@ -213,7 +216,7 @@ fn lex_filter_expression(expr: &str) -> Vec<FilterExpression> {
         let start = captures.get(0).unwrap().start();
         if upto != start {
             // Syntax error - ignore it and return whole expression as constant
-            return vec![FilterExpression::Constant(expr.to_string())];
+            return vec![FilterExpression::Unparsed(expr.to_string())];
         }
 
         if !variable {
@@ -246,9 +249,53 @@ fn lex_filter_expression(expr: &str) -> Vec<FilterExpression> {
     }
     if upto != expr.len() {
         // Syntax error - ignore it and return whole expression as constant
-        return vec![FilterExpression::Constant(expr.to_string())];
+        return vec![FilterExpression::Unparsed(expr.to_string())];
     }
     tokens
+}
+
+static SMART_SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?x)
+        ((?:
+            [^\s'"]*
+            (?:
+                (?:"(?:[^"\\]|\\.)*" | '(?:[^'\\]|\\.)*')
+                [^\s'"]*
+            )+
+        ) | \S+)"#,
+    )
+    .unwrap()
+});
+
+fn smart_split(text: &str) -> Vec<String> {
+    SMART_SPLIT_RE
+        .captures_iter(text)
+        .map(|cap| cap[0].to_string())
+        .collect()
+}
+
+fn split_contents(contents: &str) -> Vec<String> {
+    let mut split = Vec::new();
+    let mut bits = smart_split(contents).into_iter();
+
+    while let Some(mut bit) = bits.next() {
+        if bit.starts_with("_(\"") || bit.starts_with("_('") {
+            let sentinel = format!("{})", &bit[2..3]);
+            let mut trans_bit = vec![bit];
+            while !trans_bit.last().unwrap().ends_with(&sentinel) {
+                if let Some(next_bit) = bits.next() {
+                    trans_bit.push(next_bit);
+                } else {
+                    break;
+                }
+            }
+            bit = trans_bit.join(" ");
+        }
+
+        split.push(bit);
+    }
+    split
 }
 
 fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
@@ -271,9 +318,9 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
                 format_variable(filter_expressions, &mut result);
                 result.push_str(" }}");
             }
-            TokenType::Block => {
+            TokenType::Block { bits } => {
                 result.push_str("{% ");
-                result.push_str(&token.contents);
+                result.push_str(&bits.join(" "));
                 result.push_str(" %}");
             }
             TokenType::Comment => {
@@ -290,6 +337,9 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
 fn format_variable(filter_expressions: &[FilterExpression], result: &mut String) {
     for expr in filter_expressions {
         match expr {
+            FilterExpression::Unparsed(value) => {
+                result.push_str(value);
+            }
             FilterExpression::Constant(constant) => {
                 result.push_str(constant);
             }
@@ -342,42 +392,59 @@ fn fix_template_whitespace(tokens: &mut Vec<Token>) {
 fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
     let mut i = 0;
     while i < tokens.len() {
-        if tokens[i].token_type == TokenType::Block && tokens[i].contents.starts_with("load ") {
-            let mut j = i + 1;
-            let mut to_merge = vec![i];
-            while j < tokens.len() {
-                match tokens[j].token_type {
-                    TokenType::Text if tokens[j].contents.trim().is_empty() => j += 1,
-                    TokenType::Block if tokens[j].contents.starts_with("load ") => {
-                        to_merge.push(j);
-                        j += 1;
+        if let TokenType::Block { ref bits } = tokens[i].token_type {
+            if bits[0] == "load" {
+                let mut j = i + 1;
+                let mut to_merge = vec![i];
+                while j < tokens.len() {
+                    match &tokens[j].token_type {
+                        TokenType::Text if tokens[j].contents.trim().is_empty() => j += 1,
+                        TokenType::Block { bits } if bits[0] == "load" => {
+                            to_merge.push(j);
+                            j += 1;
+                        }
+                        _ => break,
                     }
-                    _ => break,
                 }
-            }
-            if tokens[j - 1].token_type == TokenType::Text {
-                j -= 1;
-            }
-            let mut parts = Vec::new();
-            for &idx in &to_merge {
-                parts.extend(tokens[idx].contents.split_whitespace().skip(1));
-            }
+                if j > 0 && matches!(tokens[j - 1].token_type, TokenType::Text) {
+                    j -= 1;
+                }
 
-            // Django 2.1+: admin_static and staticfiles -> static
-            if target_version.is_some() && target_version.unwrap() >= (2, 1) {
-                parts = parts
-                    .into_iter()
-                    .map(|part| match part {
-                        "admin_static" | "staticfiles" => "static",
-                        _ => part,
+                let mut parts: Vec<String> = to_merge
+                    .iter()
+                    .filter_map(|&idx| {
+                        if let TokenType::Block { bits } = &tokens[idx].token_type {
+                            Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
+                        } else {
+                            None
+                        }
                     })
+                    .flatten()
                     .collect();
-            }
 
-            parts.sort_unstable();
-            parts.dedup();
-            tokens[i].contents = format!("load {}", parts.join(" "));
-            tokens.drain(i + 1..j);
+                if let Some(version) = target_version {
+                    if version >= (2, 1) {
+                        parts = parts
+                            .into_iter()
+                            .map(|part| match part.as_str() {
+                                "admin_static" | "staticfiles" => "static".to_string(),
+                                _ => part,
+                            })
+                            .collect();
+                    }
+                }
+
+                parts.sort_unstable();
+                parts.dedup();
+                parts.insert(0, "load".to_string());
+
+                if let TokenType::Block { bits } = &mut tokens[i].token_type {
+                    bits.clear();
+                    bits.extend(parts);
+                }
+
+                tokens.drain(i + 1..j);
+            }
         }
         i += 1;
     }
@@ -387,25 +454,32 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
     let mut block_stack = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
-        if tokens[i].token_type == TokenType::Block {
-            if tokens[i].contents.starts_with("block ") {
-                let label = tokens[i].contents.split_whitespace().nth(1).unwrap_or("");
-                block_stack.push((i, label.to_string()));
-            } else if tokens[i].contents == "endblock"
-                || tokens[i].contents.starts_with("endblock ")
-            {
+        let update = match &tokens[i].token_type {
+            TokenType::Block { bits } if bits[0] == "block" => {
+                let label = bits.get(1).cloned();
+                block_stack.push((i, label));
+                None
+            }
+            TokenType::Block { bits } if bits[0] == "endblock" => {
                 if let Some((start, label)) = block_stack.pop() {
-                    let parts: Vec<&str> = tokens[i].contents.split_whitespace().collect();
-                    if parts.len() == 1 || (parts.len() == 2 && parts[1] == label) {
+                    if bits.len() == 1 || (bits.len() == 2 && label.as_ref() == bits.get(1)) {
                         let same_line = tokens[start].lineno == tokens[i].lineno;
-                        tokens[i].contents = if same_line {
-                            "endblock".to_string()
+                        Some(if same_line {
+                            vec!["endblock".to_string()]
                         } else {
-                            format!("endblock {}", label)
-                        };
+                            vec!["endblock".to_string(), label.unwrap()]
+                        })
+                    } else {
+                        None
                     }
+                } else {
+                    None
                 }
             }
+            _ => None,
+        };
+        if let Some(new_bits) = update {
+            tokens[i].token_type = TokenType::Block { bits: new_bits };
         }
         i += 1;
     }
@@ -416,22 +490,24 @@ fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
     let mut block_depth = 0;
 
     for i in 0..tokens.len() {
-        if tokens[i].token_type == TokenType::Block {
-            let content = &tokens[i].contents;
-            if content.starts_with("extends ") {
-                after_extends = true;
-                unindent_token(tokens, i);
-            } else if content.starts_with("block ") {
-                if after_extends && block_depth == 0 {
+        match &tokens[i].token_type {
+            TokenType::Block { bits } => {
+                if bits.len() >= 1 && bits[0] == "extends" {
+                    after_extends = true;
                     unindent_token(tokens, i);
-                }
-                block_depth += 1;
-            } else if content.starts_with("endblock") {
-                block_depth -= 1;
-                if after_extends && block_depth == 0 {
-                    unindent_token(tokens, i);
+                } else if bits[0] == "block" {
+                    if after_extends && block_depth == 0 {
+                        unindent_token(tokens, i);
+                    }
+                    block_depth += 1;
+                } else if bits[0] == "endblock" {
+                    block_depth -= 1;
+                    if after_extends && block_depth == 0 {
+                        unindent_token(tokens, i);
+                    }
                 }
             }
+            _ => continue,
         }
     }
 }
@@ -512,15 +588,33 @@ mod tests {
     }
 
     #[test]
-    fn test_format_syntax_error_start() {
+    fn test_format_variables_syntax_error_start() {
         let formatted = format("{{ ?egg | crack }}\n", None);
         assert_eq!(formatted, "{{ ?egg | crack }}\n");
     }
 
     #[test]
-    fn test_format_syntax_error_end() {
+    fn test_format_variables_syntax_error_end() {
         let formatted = format("{{ egg | crack? }}\n", None);
         assert_eq!(formatted, "{{ egg | crack? }}\n");
+    }
+
+    #[test]
+    fn test_format_block_bits() {
+        let formatted = format("{%  if breakfast  ==  'egg'  %}\n", None);
+        assert_eq!(formatted, "{% if breakfast == 'egg' %}\n");
+    }
+
+    #[test]
+    fn test_format_block_bits_spaces_in_string() {
+        let formatted = format("{% if breakfast == 'egg  mcmuffin' %}\n", None);
+        assert_eq!(formatted, "{% if breakfast == 'egg  mcmuffin' %}\n");
+    }
+
+    #[test]
+    fn test_format_block_bits_spaces_in_translated_string() {
+        let formatted = format("{% if breakfast == _('egg  mcmuffin') %}\n", None);
+        assert_eq!(formatted, "{% if breakfast == _('egg  mcmuffin') %}\n");
     }
 
     // fix_start_end_whitespace
