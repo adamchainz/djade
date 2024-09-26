@@ -2,6 +2,10 @@
 Changelog
 =========
 
+* Fix crash with unlabelled opening ``{% block %}`` tags.
+
+  `PR #63 <https://github.com/adamchainz/djade/pull/63>`__.
+
 1.0.0 (2024-09-25)
 ------------------
 
