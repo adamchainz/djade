@@ -488,13 +488,13 @@ fn fix_endblock_labels(tokens: &mut Vec<Token>) {
                 None
             }
             Token::Block { bits, lineno } if bits[0] == "endblock" => {
-                if let Some((label, start_lineno)) = block_stack.pop() {
-                    if bits.len() == 1 || (bits.len() == 2 && label.as_ref() == bits.get(1)) {
+                if let Some((Some(label), start_lineno)) = block_stack.pop() {
+                    if bits.len() == 1 || (bits.len() == 2 && label == bits[1]) {
                         let same_line = start_lineno == *lineno;
                         Some(if same_line {
                             vec!["endblock".to_string()]
                         } else {
-                            vec!["endblock".to_string(), label.unwrap()]
+                            vec!["endblock".to_string(), label]
                         })
                     } else {
                         None
@@ -959,6 +959,12 @@ mod tests {
     }
 
     // fix_endblock_labels
+
+    #[test]
+    fn test_format_block_no_label() {
+        let formatted = format("{% block %}\n{% endblock %}\n", None);
+        assert_eq!(formatted, "{% block %}\n{% endblock %}\n");
+    }
 
     #[test]
     fn test_format_endblock_broken() {
