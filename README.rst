@@ -92,17 +92,17 @@ Pass a list of template files to format them:
 
 .. code-block:: console
 
-    $ djade --target-version 5.1 templates/eggs/*.html
-    Rewriting templates/eggs/dodo.html
-    Rewriting templates/eggs/ostrich.html
+    $ djade --target-version 5.1 templates/**/*.html
+    Rewriting templates/locomotives/steam_engine.html
+    Rewriting templates/locomotives/diesel.html
 
 Djade can also upgrade some old template syntax.
 Add the ``--target-version`` option with your Django version as ``<major>.<minor>`` to enable applicable fixers:
 
 .. code-block:: console
 
-    $ djade --target-version 5.1 templates/eggs/*.html
-    Rewriting templates/eggs/quail.html
+    $ djade --target-version 5.1 templates/**/*.html
+    Rewriting templates/locomotives/steam_engine.html
 
 Djade does not have any ability to recurse through directories.
 Use the pre-commit integration, globbing, or another technique to apply it to many files.
@@ -153,54 +153,54 @@ Rules from the Django style guide:
 
   .. code-block:: diff
 
-    -{{egg}}
-    +{{ egg }}
+    -{{train}}
+    +{{ train }}
 
-    -{%  crack egg  %}
-    +{% crack egg %}
+    -{%  blow whistle  %}
+    +{% blow whistle %}
 
 * Label ``{% endblock %}`` tags that aren’t on the same line as their opening ``{% block %}`` tag:
 
   .. code-block:: diff
 
-     {% block shell %}
+     {% block funnel %}
      ...
     -{% endblock %}
-    +{% endblock shell %}
+    +{% endblock funnel %}
 
 * Sort libraries in ``{% load %}`` tags:
 
   .. code-block:: diff
 
-    -{% load omelette frittata %}
-    +{% load friattata omelette %}
+    -{% load coal boiler %}
+    +{% load boiler coal %}
 
 * Inside variables, no spaces around filters:
 
   .. code-block:: diff
 
-    -{{ egg | crack }}
-    +{{ egg|crack }}
+    -{{ fire | stoke }}
+    +{{ fire|stoke }}
 
 * Inside tags, single spaces between tokens:
 
   .. code-block:: diff
 
-    -{% if  breakfast  ==  'scrambled eggs'  %}
-    +{% if breakfast == 'scrambled eggs' %}
+    -{% if  locomotive  ==  'steam engine'  %}
+    +{% if locomotive == 'steam engine' %}
 
 * Unindent top-level ``{% block %}`` and ``{% endblock %}`` tags when ``{% extends %}`` is used:
 
   .. code-block:: diff
 
-    -  {% extends 'egg.html' %}
-    +{% extends 'egg.html' %}
+    -  {% extends 'engine.html' %}
+    +{% extends 'engine.html' %}
 
-    -  {% block yolk %}
-    +{% block yolk %}
-         ...
-    -  {% endblock yolk %}
-    +{% endblock yolk %}
+    -  {% block boiler %}
+    +{% block boiler %}
+       ...
+    -  {% endblock boiler %}
+    +{% endblock boiler %}
 
 Extra rules:
 
@@ -209,7 +209,7 @@ Extra rules:
   .. code-block:: diff
 
     -
-     {% extends 'white.html' %}
+     {% extends 'engine.html' %}
      ...
 
 * No trailing empty lines:
@@ -217,7 +217,7 @@ Extra rules:
   .. code-block:: diff
 
      ...
-     {% endblock content %}
+     {% endblock wheels %}
     -
     -
 
@@ -225,46 +225,46 @@ Extra rules:
 
   .. code-block:: diff
 
-    -{#egg#}
-    +{# egg #}
+    -{#choo choo#}
+    +{# choo choo #}
 
 * No labels in ``{% endblock %}`` tags on the same line as their opening ``{% block %}`` tag:
 
   .. code-block:: diff
 
-    -{% block shell %}...{% endblock shell %}
-    +{% block shell %}...{% endblock %}
+    -{% block funnel %}...{% endblock funnel %}
+    +{% block funnel %}...{% endblock %}
 
 * Merge consecutive ``{% load %}`` tags:
 
   .. code-block:: diff
 
-    -{% load omelette %}
+    -{% load boiler %}
     -
-    -{% load frittata %}
-    +{% load frittata omelette %}
+    -{% load coal %}
+    +{% load boiler coal %}
 
 * Unindent ``{% extends %}`` tags:
 
   .. code-block:: diff
 
-    -  {% extends 'egg.html' %}
-    +{% extends 'egg.html' %}
+    -  {% extends 'engine.html' %}
+    +{% extends 'engine.html' %}
 
 * Exactly one blank line between top-level ``{% block %}`` and ``{% endblock %}`` tags when ``{% extends %}`` is used:
 
 .. code-block:: diff
 
-     {% extends 'egg.html' %}
+     {% extends 'engine.html' %}
 
     -
-     {% block yolk %}
+     {% block funnel %}
        ...
-     {% endblock yolk %}
+     {% endblock funnel %}
     +
-     {% block white %}
+     {% block boiler %}
        ...
-     {% endblock white %}
+     {% endblock boiler %}
 
 Fixers
 ======
@@ -282,8 +282,8 @@ Djade updates usage of the deprecated filter within ``if`` tags, without other c
 
 .. code-block:: diff
 
-    -{% if eggs|length_is:1 %}
-    +{% if eggs|length == 1 %}
+    -{% if engines|length_is:1 %}
+    +{% if engines|length == 1 %}
 
 Django 4.1+: empty ID ``json_script`` fixer
 -------------------------------------------
@@ -296,8 +296,8 @@ Djade removes the argument where ``json_script`` is passed an empty string, to a
 
 .. code-block:: diff
 
-    -{% egg_data|json_script:"" %}
-    +{% egg_data|json_script %}
+    -{% tracks|json_script:"" %}
+    +{% tracks|json_script %}
 
 Django 3.1+: ``trans`` -> ``translate``, ``blocktrans`` / ``endblocktrans`` -> ``blocktranslate`` / ``endblocktranslate``
 -------------------------------------------------------------------------------------------------------------------------
@@ -311,12 +311,12 @@ Djade updates the deprecated tags appropriately:
 
 .. code-block:: diff
 
-    -{% trans "Egg types" %}
-    +{% translate "Egg types" %}
+    -{% trans "Engine colours" %}
+    +{% translate "Engine colours" %}
 
-    -{% blocktrans with colour=egg.colour %}
-    +{% blocktranslate with colour=egg.colour %}
-     This egg is {{ colour }}.
+    -{% blocktrans with colour=engine.colour %}
+    +{% blocktranslate with colour=engine.colour %}
+     This engine is {{ colour }}.
     -{% endblocktrans %}
     +{% endblocktranslate %}
 
@@ -331,15 +331,15 @@ Djade updates the deprecated tags appropriately:
 
 .. code-block:: diff
 
-    -{% ifequal egg.colour 'golden' %}
-    +{% if egg.colour == 'golden' %}
-     golden
+    -{% ifequal engine.colour 'blue' %}
+    +{% if engine.colour == 'blue' %}
+     Thomas!
     -{% endifequal %}
     +{% endif %}
 
-    -{% ifnotequal egg.colour 'silver' %}
-    +{% if egg.colour != 'silver' %}
-     not silver
+    -{% ifnotequal engine.colour 'blue' %}
+    +{% if engine.colour != 'blue' %}
+     Not Thomas.
     -{% endifnotequal %}
     +{% endif %}
 

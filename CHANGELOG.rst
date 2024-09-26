@@ -9,15 +9,15 @@ Changelog
 
   .. code-block:: diff
 
-      -{{ egg | crack }}
-      +{{ egg|crack }}
+      -{{ fire | stoke }}
+      +{{ fire|stoke }}
 
 * Add formatting of block tags:
 
   .. code-block:: diff
 
-      -{% if  breakfast  ==  'scrambled eggs'  %}
-      +{% if breakfast == 'scrambled eggs' %}
+      -{% if  engine.colour  ==  'blue'  %}
+      +{% if engine.colour == 'blue' %}
 
 * Add unindenting of ``{% extends %}`` tags, and top-level ``{% block %}`` and ``{% endblock %}`` tags where ``{% extends %}`` is used.
 
