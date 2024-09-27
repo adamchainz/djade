@@ -11,6 +11,10 @@ Changelog
 
   Thanks to Eric Holscher for the report in `Issue #62 <https://github.com/adamchainz/djade/issues/62>`__.
 
+* Update ``{% load ... from i18n %}`` tags in the Django 3.1+ translate tag fixer.
+
+  `Issue #67 <https://github.com/adamchainz/djade/issues/67>`__.
+
 * Fix crash with unlabelled opening ``{% block %}`` tags.
 
   `PR #63 <https://github.com/adamchainz/djade/pull/63>`__.
