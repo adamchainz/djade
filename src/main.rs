@@ -463,6 +463,20 @@ fn migrate_translation_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
                 "endblocktrans" => {
                     bits[0] = "endblocktranslate".to_string();
                 }
+                "load" => {
+                    if bits.len() >= 4
+                        && bits[bits.len() - 2] == "from"
+                        && bits[bits.len() - 1] == "i18n"
+                    {
+                        for i in 1..bits.len() - 2 {
+                            if bits[i] == "trans" {
+                                bits[i] = "translate".to_string();
+                            } else if bits[i] == "blocktrans" {
+                                bits[i] = "blocktranslate".to_string();
+                            }
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -1015,28 +1029,49 @@ mod tests {
 
     #[test]
     fn test_trans_not_migrated_old_django() {
-        let formatted = format("{% trans 'Hello' %}\n", Some((3, 0)));
-        assert_eq!(formatted, "{% trans 'Hello' %}\n");
+        let formatted = format(
+            "{% load trans from i18n %}\n{% trans 'Hello' %}\n",
+            Some((3, 0)),
+        );
+        assert_eq!(
+            formatted,
+            "{% load trans from i18n %}\n{% trans 'Hello' %}\n"
+        );
     }
 
     #[test]
     fn test_trans_migrated() {
-        let formatted = format("{% trans 'Hello' %}\n", Some((3, 1)));
-        assert_eq!(formatted, "{% translate 'Hello' %}\n");
+        let formatted = format(
+            "{% load trans from i18n %}\n{% trans 'Hello' %}\n",
+            Some((3, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% load translate from i18n %}\n{% translate 'Hello' %}\n"
+        );
     }
 
     #[test]
     fn test_blocktrans_not_migrated_old_django() {
-        let formatted = format("{% blocktrans %}Hello{% endblocktrans %}\n", Some((3, 0)));
-        assert_eq!(formatted, "{% blocktrans %}Hello{% endblocktrans %}\n");
+        let formatted = format(
+            "{% load blocktrans from i18n %}\n{% blocktrans %}Hello{% endblocktrans %}\n",
+            Some((3, 0)),
+        );
+        assert_eq!(
+            formatted,
+            "{% load blocktrans from i18n %}\n{% blocktrans %}Hello{% endblocktrans %}\n"
+        );
     }
 
     #[test]
     fn test_blocktrans_migrated() {
-        let formatted = format("{% blocktrans %}Hello{% endblocktrans %}\n", Some((3, 1)));
+        let formatted = format(
+            "{% load blocktrans from i18n %}\n{% blocktrans %}Hello{% endblocktrans %}\n",
+            Some((3, 1)),
+        );
         assert_eq!(
             formatted,
-            "{% blocktranslate %}Hello{% endblocktranslate %}\n"
+            "{% load blocktranslate from i18n %}\n{% blocktranslate %}Hello{% endblocktranslate %}\n"
         );
     }
 

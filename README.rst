@@ -318,6 +318,9 @@ Djade updates the deprecated tags appropriately:
 
 .. code-block:: diff
 
+    -{% load blocktrans trans from i18n %}
+    +{% load blocktranslate translate from i18n %}
+
     -{% trans "Engine colours" %}
     +{% translate "Engine colours" %}
 
