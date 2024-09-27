@@ -328,10 +328,11 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     migrate_empty_json_script(&mut tokens, target_version);
     migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
+    migrate_static_load_tags(&mut tokens, target_version);
 
     // Formatters
     update_leading_trailing_whitespace(&mut tokens);
-    update_load_tags(&mut tokens, target_version);
+    update_load_tags(&mut tokens);
     update_endblock_labels(&mut tokens);
     update_top_level_block_indentation(&mut tokens);
     update_top_level_block_spacing(&mut tokens);
@@ -533,6 +534,34 @@ fn migrate_ifequal_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)
     }
 }
 
+fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+    if target_version.is_none() || target_version.unwrap() < (2, 1) {
+        return;
+    }
+
+    for token in tokens.iter_mut() {
+        if let Token::Block { bits, .. } = token {
+            if bits[0] == "load" {
+                if bits.contains(&"from".to_string()) {
+                    if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
+                        let last = bits.len() - 1;
+                        let library = bits[last].as_str();
+                        if library == "admin_static" || library == "staticfiles" {
+                            bits[last] = "static".to_string();
+                        }
+                    }
+                } else {
+                    for i in 1..bits.len() {
+                        if bits[i] == "admin_static" || bits[i] == "staticfiles" {
+                            bits[i] = "static".to_string();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Formatters
 
 static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
@@ -556,7 +585,7 @@ fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>) {
     }
 }
 
-fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+fn update_load_tags(tokens: &mut Vec<Token>) {
     let mut i = 0;
     while i < tokens.len() {
         if let Token::Block { ref bits, .. } = tokens[i] {
@@ -564,15 +593,7 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
                 // load ... from ...
                 if bits.contains(&"from".to_string()) {
                     if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
-                        let mut library = bits[bits.len() - 1].as_str();
-                        if let Some(version) = target_version {
-                            if version >= (2, 1)
-                                && (library == "admin_static" || library == "staticfiles")
-                            {
-                                library = "static";
-                            }
-                        }
-
+                        let library = bits[bits.len() - 1].as_str();
                         let mut parts = bits[1..bits.len() - 2].to_vec();
 
                         parts.sort_unstable();
@@ -620,18 +641,6 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
                         })
                         .flatten()
                         .collect();
-
-                    if let Some(version) = target_version {
-                        if version >= (2, 1) {
-                            parts = parts
-                                .into_iter()
-                                .map(|part| match part.as_str() {
-                                    "admin_static" | "staticfiles" => "static".to_string(),
-                                    _ => part,
-                                })
-                                .collect();
-                        }
-                    }
 
                     parts.sort_unstable();
                     parts.dedup();
@@ -1091,6 +1100,56 @@ mod tests {
         );
     }
 
+    // migrate_static_load_tags
+
+    #[test]
+    fn test_admin_static_migrated() {
+        let formatted = format("{% load admin_static %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static %}\n");
+    }
+
+    #[test]
+    fn test_admin_static_not_migrated() {
+        let formatted = format("{% load admin_static %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load admin_static %}\n");
+    }
+
+    #[test]
+    fn test_staticfiles_migrated() {
+        let formatted = format("{% load staticfiles %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static %}\n");
+    }
+
+    #[test]
+    fn test_staticfiles_not_migrated() {
+        let formatted = format("{% load staticfiles %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load staticfiles %}\n");
+    }
+
+    #[test]
+    fn test_from_admin_static_migrated() {
+        let formatted = format("{% load static from admin_static %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static from static %}\n");
+    }
+
+    #[test]
+    fn test_from_admin_static_not_migrated() {
+        let formatted = format("{% load static from admin_static %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load static from admin_static %}\n");
+    }
+
+    #[test]
+    fn test_from_staticfiles_migrated() {
+        let formatted = format("{% load static from staticfiles %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static from static %}\n");
+    }
+
+    #[test]
+    fn test_from_staticfiles_not_migrated() {
+        let formatted = format("{% load static from staticfiles %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load static from staticfiles %}\n");
+    }
+
     // Formatters
 
     // update_leading_trailing_whitespace
@@ -1206,54 +1265,6 @@ mod tests {
     fn test_format_load_trailing_empty_lines_left() {
         let formatted = format("{% load albumen %}\n\n{% albu %}\n", None);
         assert_eq!(formatted, "{% load albumen %}\n\n{% albu %}\n");
-    }
-
-    #[test]
-    fn test_format_load_admin_static_migrated() {
-        let formatted = format("{% load admin_static %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_admin_static_not_migrated() {
-        let formatted = format("{% load admin_static %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load admin_static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_staticfiles_migrated() {
-        let formatted = format("{% load staticfiles %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_staticfiles_not_migrated() {
-        let formatted = format("{% load staticfiles %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load staticfiles %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_admin_static_migrated() {
-        let formatted = format("{% load static from admin_static %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static from static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_admin_static_not_migrated() {
-        let formatted = format("{% load static from admin_static %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load static from admin_static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_staticfiles_migrated() {
-        let formatted = format("{% load static from staticfiles %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static from static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_staticfiles_not_migrated() {
-        let formatted = format("{% load static from staticfiles %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load static from staticfiles %}\n");
     }
 
     // update_endblock_labels
