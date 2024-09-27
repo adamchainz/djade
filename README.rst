@@ -244,6 +244,13 @@ Extra rules:
     -{% load coal %}
     +{% load boiler coal %}
 
+* Sort loaded items in ``{% load ... from .. %}`` tags:
+
+.. code-block:: diff
+
+    -{% load steam heat from boiler %}
+    +{% load heat steam from boiler %}
+
 * Unindent ``{% extends %}`` tags:
 
   .. code-block:: diff

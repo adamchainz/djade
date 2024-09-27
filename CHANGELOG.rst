@@ -2,6 +2,15 @@
 Changelog
 =========
 
+* Fix handling of the ``{% load ... from .. %}`` syntax, and add sorting of loaded items:
+
+  .. code-block:: diff
+
+    -{% load steam heat from boiler %}
+    +{% load heat steam from boiler %}
+
+  Thanks to Eric Holscher for the report in `Issue #62 <https://github.com/adamchainz/djade/issues/62>`__.
+
 * Fix crash with unlabelled opening ``{% block %}`` tags.
 
   `PR #63 <https://github.com/adamchainz/djade/pull/63>`__.
