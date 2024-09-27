@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.1.0 (2024-09-27)
+------------------
+
 * Fix handling of the ``{% load ... from .. %}`` syntax, and add sorting of loaded items:
 
   .. code-block:: diff
