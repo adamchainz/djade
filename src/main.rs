@@ -323,18 +323,20 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     // Lex
     let mut tokens = lex(content);
 
-    // Token-fixing passes
-    fix_template_whitespace(&mut tokens);
-    update_load_tags(&mut tokens, target_version);
-    fix_endblock_labels(&mut tokens);
+    // Fixers
     migrate_length_is(&mut tokens, target_version);
     migrate_empty_json_script(&mut tokens, target_version);
     migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
-    unindent_extends_and_blocks(&mut tokens);
-    adjust_top_level_block_spacing(&mut tokens);
 
-    // Build result
+    // Formatters
+    update_leading_trailing_whitespace(&mut tokens);
+    update_load_tags(&mut tokens, target_version);
+    update_endblock_labels(&mut tokens);
+    update_top_level_block_indentation(&mut tokens);
+    update_top_level_block_spacing(&mut tokens);
+
+    // Final build
     let mut result = String::new();
     for token in tokens {
         match token {
@@ -394,159 +396,7 @@ fn format_variable(filter_expression: FilterExpression, result: &mut String) {
     }
 }
 
-static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
-fn fix_template_whitespace(tokens: &mut Vec<Token>) {
-    if let Some(mut token) = tokens.first_mut() {
-        if let Token::Text { contents, .. } = &mut token {
-            *contents = (&*LEADING_BLANK_LINES).replace(contents, "").to_string();
-        }
-    }
-
-    if let Some(mut token) = tokens.last_mut() {
-        if let Token::Text { contents, .. } = &mut token {
-            *contents = contents.trim_end().to_string() + "\n";
-        } else {
-            tokens.push(Token::Text {
-                contents: "\n".to_string(),
-                lineno: 0,
-            });
-        }
-    }
-}
-
-fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
-    let mut i = 0;
-    while i < tokens.len() {
-        if let Token::Block { ref bits, .. } = tokens[i] {
-            if bits[0] == "load" {
-                // load ... from ...
-                if bits.contains(&"from".to_string()) {
-                    if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
-                        let mut library = bits[bits.len() - 1].as_str();
-                        if let Some(version) = target_version {
-                            if version >= (2, 1)
-                                && (library == "admin_static" || library == "staticfiles")
-                            {
-                                library = "static";
-                            }
-                        }
-
-                        let mut parts = bits[1..bits.len() - 2].to_vec();
-
-                        parts.sort_unstable();
-                        parts.dedup();
-                        parts.insert(0, "load".to_string());
-                        parts.push("from".to_string());
-                        parts.push(library.to_string());
-
-                        if let Token::Block { bits, .. } = &mut tokens[i] {
-                            bits.clear();
-                            bits.extend(parts);
-                        }
-                    }
-                // load ...
-                } else {
-                    let mut j = i + 1;
-                    let mut to_merge = vec![i];
-                    while j < tokens.len() {
-                        match &tokens[j] {
-                            Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
-                            Token::Block { bits, .. } if bits[0] == "load" => {
-                                if bits.contains(&"from".to_string()) {
-                                    break;
-                                }
-                                to_merge.push(j);
-                                j += 1
-                            }
-                            _ => break,
-                        }
-                    }
-                    if j > 0 {
-                        if let Token::Text { .. } = tokens[j - 1] {
-                            j -= 1;
-                        }
-                    }
-
-                    let mut parts: Vec<String> = to_merge
-                        .iter()
-                        .filter_map(|&idx| {
-                            if let Token::Block { bits, .. } = &tokens[idx] {
-                                Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
-                            } else {
-                                None
-                            }
-                        })
-                        .flatten()
-                        .collect();
-
-                    if let Some(version) = target_version {
-                        if version >= (2, 1) {
-                            parts = parts
-                                .into_iter()
-                                .map(|part| match part.as_str() {
-                                    "admin_static" | "staticfiles" => "static".to_string(),
-                                    _ => part,
-                                })
-                                .collect();
-                        }
-                    }
-
-                    parts.sort_unstable();
-                    parts.dedup();
-                    parts.insert(0, "load".to_string());
-
-                    if let Token::Block { bits, .. } = &mut tokens[i] {
-                        bits.clear();
-                        bits.extend(parts);
-                    }
-
-                    tokens.drain(i + 1..j);
-                }
-            }
-        }
-        i += 1;
-    }
-}
-
-fn fix_endblock_labels(tokens: &mut Vec<Token>) {
-    let mut block_stack = Vec::new();
-    let mut i = 0;
-    while i < tokens.len() {
-        let update = match &tokens[i] {
-            Token::Block { bits, lineno } if bits[0] == "block" => {
-                let label = bits.get(1).cloned();
-                block_stack.push((label, *lineno));
-                None
-            }
-            Token::Block { bits, lineno } if bits[0] == "endblock" => {
-                if let Some((Some(label), start_lineno)) = block_stack.pop() {
-                    if bits.len() == 1 || (bits.len() == 2 && label == bits[1]) {
-                        let same_line = start_lineno == *lineno;
-                        Some(if same_line {
-                            vec!["endblock".to_string()]
-                        } else {
-                            vec!["endblock".to_string(), label]
-                        })
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        if let Some(new_bits) = update {
-            if let Token::Block { lineno, .. } = tokens[i] {
-                tokens[i] = Token::Block {
-                    bits: new_bits,
-                    lineno,
-                };
-            }
-        }
-        i += 1;
-    }
-}
+// Fixers
 
 static LENGTH_IS_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"([\w.]+)\|length_is:(\w+)").unwrap());
@@ -683,7 +533,164 @@ fn migrate_ifequal_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)
     }
 }
 
-fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
+// Formatters
+
+static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
+
+fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>) {
+    if let Some(mut token) = tokens.first_mut() {
+        if let Token::Text { contents, .. } = &mut token {
+            *contents = (&*LEADING_BLANK_LINES).replace(contents, "").to_string();
+        }
+    }
+
+    if let Some(mut token) = tokens.last_mut() {
+        if let Token::Text { contents, .. } = &mut token {
+            *contents = contents.trim_end().to_string() + "\n";
+        } else {
+            tokens.push(Token::Text {
+                contents: "\n".to_string(),
+                lineno: 0,
+            });
+        }
+    }
+}
+
+fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+    let mut i = 0;
+    while i < tokens.len() {
+        if let Token::Block { ref bits, .. } = tokens[i] {
+            if bits[0] == "load" {
+                // load ... from ...
+                if bits.contains(&"from".to_string()) {
+                    if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
+                        let mut library = bits[bits.len() - 1].as_str();
+                        if let Some(version) = target_version {
+                            if version >= (2, 1)
+                                && (library == "admin_static" || library == "staticfiles")
+                            {
+                                library = "static";
+                            }
+                        }
+
+                        let mut parts = bits[1..bits.len() - 2].to_vec();
+
+                        parts.sort_unstable();
+                        parts.dedup();
+                        parts.insert(0, "load".to_string());
+                        parts.push("from".to_string());
+                        parts.push(library.to_string());
+
+                        if let Token::Block { bits, .. } = &mut tokens[i] {
+                            bits.clear();
+                            bits.extend(parts);
+                        }
+                    }
+                // load ...
+                } else {
+                    let mut j = i + 1;
+                    let mut to_merge = vec![i];
+                    while j < tokens.len() {
+                        match &tokens[j] {
+                            Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
+                            Token::Block { bits, .. } if bits[0] == "load" => {
+                                if bits.contains(&"from".to_string()) {
+                                    break;
+                                }
+                                to_merge.push(j);
+                                j += 1
+                            }
+                            _ => break,
+                        }
+                    }
+                    if j > 0 {
+                        if let Token::Text { .. } = tokens[j - 1] {
+                            j -= 1;
+                        }
+                    }
+
+                    let mut parts: Vec<String> = to_merge
+                        .iter()
+                        .filter_map(|&idx| {
+                            if let Token::Block { bits, .. } = &tokens[idx] {
+                                Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten()
+                        .collect();
+
+                    if let Some(version) = target_version {
+                        if version >= (2, 1) {
+                            parts = parts
+                                .into_iter()
+                                .map(|part| match part.as_str() {
+                                    "admin_static" | "staticfiles" => "static".to_string(),
+                                    _ => part,
+                                })
+                                .collect();
+                        }
+                    }
+
+                    parts.sort_unstable();
+                    parts.dedup();
+                    parts.insert(0, "load".to_string());
+
+                    if let Token::Block { bits, .. } = &mut tokens[i] {
+                        bits.clear();
+                        bits.extend(parts);
+                    }
+
+                    tokens.drain(i + 1..j);
+                }
+            }
+        }
+        i += 1;
+    }
+}
+
+fn update_endblock_labels(tokens: &mut Vec<Token>) {
+    let mut block_stack = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        let update = match &tokens[i] {
+            Token::Block { bits, lineno } if bits[0] == "block" => {
+                let label = bits.get(1).cloned();
+                block_stack.push((label, *lineno));
+                None
+            }
+            Token::Block { bits, lineno } if bits[0] == "endblock" => {
+                if let Some((Some(label), start_lineno)) = block_stack.pop() {
+                    if bits.len() == 1 || (bits.len() == 2 && label == bits[1]) {
+                        let same_line = start_lineno == *lineno;
+                        Some(if same_line {
+                            vec!["endblock".to_string()]
+                        } else {
+                            vec!["endblock".to_string(), label]
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if let Some(new_bits) = update {
+            if let Token::Block { lineno, .. } = tokens[i] {
+                tokens[i] = Token::Block {
+                    bits: new_bits,
+                    lineno,
+                };
+            }
+        }
+        i += 1;
+    }
+}
+
+fn update_top_level_block_indentation(tokens: &mut Vec<Token>) {
     let mut after_extends = false;
     let mut block_depth = 0;
 
@@ -709,6 +716,7 @@ fn unindent_extends_and_blocks(tokens: &mut Vec<Token>) {
         }
     }
 }
+
 fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
     if index > 0 {
         if let Token::Text { contents, .. } = &mut tokens[index - 1] {
@@ -717,7 +725,7 @@ fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
     }
 }
 
-fn adjust_top_level_block_spacing(tokens: &mut Vec<Token>) {
+fn update_top_level_block_spacing(tokens: &mut Vec<Token>) {
     let mut has_extends = false;
     let mut depth = 0;
     let mut last_top_level_tag = None;
@@ -794,316 +802,7 @@ mod tests {
         assert!(output.contains("is non-utf-8 (not supported)"));
     }
 
-    // format_variables
-
-    #[test]
-    fn test_format_variables_constant_int() {
-        let formatted = format("{{ 1 }}\n", None);
-        assert_eq!(formatted, "{{ 1 }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_constant_float() {
-        let formatted = format("{{ 1.23 }}\n", None);
-        assert_eq!(formatted, "{{ 1.23 }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_constant_float_negative() {
-        let formatted = format("{{ -1.23 }}\n", None);
-        assert_eq!(formatted, "{{ -1.23 }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_constant_str() {
-        let formatted = format("{{ 'egg' }}\n", None);
-        assert_eq!(formatted, "{{ 'egg' }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_constant_str_translated() {
-        let formatted = format("{{ _('egg') }}\n", None);
-        assert_eq!(formatted, "{{ _('egg') }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_var() {
-        let formatted = format("{{ egg }}\n", None);
-        assert_eq!(formatted, "{{ egg }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_var_attr() {
-        let formatted = format("{{ egg.shell }}\n", None);
-        assert_eq!(formatted, "{{ egg.shell }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_variable_filter_no_arg() {
-        let formatted = format("{{ egg | crack }}\n", None);
-        assert_eq!(formatted, "{{ egg|crack }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_variable_filter_constant_arg() {
-        let formatted = format("{{ egg | crack:'fully' }}\n", None);
-        assert_eq!(formatted, "{{ egg|crack:'fully' }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_variable_filter_variable_arg() {
-        let formatted = format("{{ egg | crack:amount }}\n", None);
-        assert_eq!(formatted, "{{ egg|crack:amount }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_syntax_error_start() {
-        let formatted = format("{{ ?egg | crack }}\n", None);
-        assert_eq!(formatted, "{{ ?egg | crack }}\n");
-    }
-
-    #[test]
-    fn test_format_variables_syntax_error_end() {
-        let formatted = format("{{ egg | crack? }}\n", None);
-        assert_eq!(formatted, "{{ egg | crack? }}\n");
-    }
-
-    #[test]
-    fn test_format_block_bits() {
-        let formatted = format("{%  if breakfast  ==  'egg'  %}\n", None);
-        assert_eq!(formatted, "{% if breakfast == 'egg' %}\n");
-    }
-
-    #[test]
-    fn test_format_block_bits_spaces_in_string() {
-        let formatted = format("{% if breakfast == 'egg  mcmuffin' %}\n", None);
-        assert_eq!(formatted, "{% if breakfast == 'egg  mcmuffin' %}\n");
-    }
-
-    #[test]
-    fn test_format_block_bits_spaces_in_translated_string() {
-        let formatted = format("{% if breakfast == _('egg  mcmuffin') %}\n", None);
-        assert_eq!(formatted, "{% if breakfast == _('egg  mcmuffin') %}\n");
-    }
-
-    // fix_start_end_whitespace
-
-    #[test]
-    fn test_format_trim_leading_whitespace() {
-        let formatted = format("  \n  {% yolk %}\n", None);
-        assert_eq!(formatted, "  {% yolk %}\n");
-    }
-
-    #[test]
-    fn test_format_trim_trailing_whitespace() {
-        let formatted = format("{% yolk %}  \n  ", None);
-        assert_eq!(formatted, "{% yolk %}\n");
-    }
-
-    #[test]
-    fn test_format_preserve_content_whitespace() {
-        let formatted = format("{% block crack %}\n  Yum  \n{% endblock crack %}", None);
-        assert_eq!(
-            formatted,
-            "{% block crack %}\n  Yum  \n{% endblock crack %}\n"
-        );
-    }
-
-    #[test]
-    fn test_format_add_trailing_newline() {
-        let formatted = format("{% block crack %}Yum{% endblock %}", None);
-        assert_eq!(formatted, "{% block crack %}Yum{% endblock %}\n");
-    }
-
-    #[test]
-    fn test_format_whitespace_only_template() {
-        let formatted = format("  \t\n  ", None);
-        assert_eq!(formatted, "\n");
-    }
-
-    #[test]
-    fn test_format_no_text_tokens() {
-        let formatted = format("{% yolk %}", None);
-        assert_eq!(formatted, "{% yolk %}\n");
-    }
-
-    // update_load_tags
-
-    #[test]
-    fn test_format_load_sorted() {
-        let formatted = format("{% load z y x %}\n", None);
-        assert_eq!(formatted, "{% load x y z %}\n");
-    }
-
-    #[test]
-    fn test_format_load_whitespace_cleaned() {
-        let formatted = format("{% load   x  y %}\n", None);
-        assert_eq!(formatted, "{% load x y %}\n");
-    }
-
-    #[test]
-    fn test_format_load_consecutive_merged() {
-        let formatted = format("{% load x %}{% load y %}\n", None);
-        assert_eq!(formatted, "{% load x y %}\n");
-    }
-
-    #[test]
-    fn test_format_load_consecutive_space_merged() {
-        let formatted = format("{% load x %} {% load y %}\n", None);
-        assert_eq!(formatted, "{% load x y %}\n");
-    }
-
-    #[test]
-    fn test_format_load_consecutive_newline_merged() {
-        let formatted = format("{% load x %}\n{% load y %}\n", None);
-        assert_eq!(formatted, "{% load x y %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_too_short_untouched() {
-        let formatted = format("{% load from a %}\n", None);
-        assert_eq!(formatted, "{% load from a %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_incorrect_untouched() {
-        let formatted = format("{% load c b from a thing %}\n", None);
-        assert_eq!(formatted, "{% load c b from a thing %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_sorted() {
-        let formatted = format("{% load c b from a %}\n", None);
-        assert_eq!(formatted, "{% load b c from a %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_unmerged_plain() {
-        let formatted = format("{% load b from a %}\n{% load c %}\n", None);
-        assert_eq!(formatted, "{% load b from a %}\n{% load c %}\n");
-    }
-
-    #[test]
-    fn test_format_load_plain_unmerged_from() {
-        let formatted = format("{% load c %}\n{% load b from a %}\n", None);
-        assert_eq!(formatted, "{% load c %}\n{% load b from a %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_unmerged_from() {
-        let formatted = format("{% load b from a %}\n{% load d from c %}\n", None);
-        assert_eq!(formatted, "{% load b from a %}\n{% load d from c %}\n");
-    }
-
-    #[test]
-    fn test_format_load_trailing_empty_lines_left() {
-        let formatted = format("{% load albumen %}\n\n{% albu %}\n", None);
-        assert_eq!(formatted, "{% load albumen %}\n\n{% albu %}\n");
-    }
-
-    #[test]
-    fn test_format_load_admin_static_migrated() {
-        let formatted = format("{% load admin_static %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_admin_static_not_migrated() {
-        let formatted = format("{% load admin_static %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load admin_static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_staticfiles_migrated() {
-        let formatted = format("{% load staticfiles %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_staticfiles_not_migrated() {
-        let formatted = format("{% load staticfiles %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load staticfiles %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_admin_static_migrated() {
-        let formatted = format("{% load static from admin_static %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static from static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_admin_static_not_migrated() {
-        let formatted = format("{% load static from admin_static %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load static from admin_static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_staticfiles_migrated() {
-        let formatted = format("{% load static from staticfiles %}\n", Some((2, 1)));
-        assert_eq!(formatted, "{% load static from static %}\n");
-    }
-
-    #[test]
-    fn test_format_load_from_staticfiles_not_migrated() {
-        let formatted = format("{% load static from staticfiles %}\n", Some((2, 0)));
-        assert_eq!(formatted, "{% load static from staticfiles %}\n");
-    }
-
-    // fix_endblock_labels
-
-    #[test]
-    fn test_format_block_no_label() {
-        let formatted = format("{% block %}\n{% endblock %}\n", None);
-        assert_eq!(formatted, "{% block %}\n{% endblock %}\n");
-    }
-
-    #[test]
-    fn test_format_endblock_broken() {
-        let formatted = format("{% endblock %}\n", None);
-        assert_eq!(formatted, "{% endblock %}\n");
-    }
-
-    #[test]
-    fn test_format_endblock_broken_nesting() {
-        let formatted = format("{% block a %}\n{% endblock b %}\n", None);
-        assert_eq!(formatted, "{% block a %}\n{% endblock b %}\n");
-    }
-
-    #[test]
-    fn test_format_endblock_label_added() {
-        let formatted = format("{% block h %}\n{% endblock %}\n", None);
-        assert_eq!(formatted, "{% block h %}\n{% endblock h %}\n");
-    }
-
-    #[test]
-    fn test_format_endblock_label_added_nested() {
-        let formatted = format(
-            "{% block h %}\n{% block i %}\n{% endblock %}\n{% endblock %}\n",
-            None,
-        );
-        assert_eq!(
-            formatted,
-            "{% block h %}\n{% block i %}\n{% endblock i %}\n{% endblock h %}\n"
-        );
-    }
-
-    #[test]
-    fn test_format_endblock_label_removed() {
-        let formatted = format("{% block h %}i{% endblock h %}\n", None);
-        assert_eq!(formatted, "{% block h %}i{% endblock %}\n");
-    }
-
-    #[test]
-    fn test_format_endblock_with_blocktranslate() {
-        let formatted = format(
-            "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock %}\n",
-            None,
-        );
-        assert_eq!(
-            formatted,
-            "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock h %}\n"
-        );
-    }
+    // Fixers
 
     // migrate_length_is
 
@@ -1392,7 +1091,228 @@ mod tests {
         );
     }
 
-    // unindent_extends_and_blocks
+    // Formatters
+
+    // update_leading_trailing_whitespace
+
+    #[test]
+    fn test_format_trim_leading_whitespace() {
+        let formatted = format("  \n  {% yolk %}\n", None);
+        assert_eq!(formatted, "  {% yolk %}\n");
+    }
+
+    #[test]
+    fn test_format_trim_trailing_whitespace() {
+        let formatted = format("{% yolk %}  \n  ", None);
+        assert_eq!(formatted, "{% yolk %}\n");
+    }
+
+    #[test]
+    fn test_format_preserve_content_whitespace() {
+        let formatted = format("{% block crack %}\n  Yum  \n{% endblock crack %}", None);
+        assert_eq!(
+            formatted,
+            "{% block crack %}\n  Yum  \n{% endblock crack %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_add_trailing_newline() {
+        let formatted = format("{% block crack %}Yum{% endblock %}", None);
+        assert_eq!(formatted, "{% block crack %}Yum{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_format_whitespace_only_template() {
+        let formatted = format("  \t\n  ", None);
+        assert_eq!(formatted, "\n");
+    }
+
+    #[test]
+    fn test_format_no_text_tokens() {
+        let formatted = format("{% yolk %}", None);
+        assert_eq!(formatted, "{% yolk %}\n");
+    }
+
+    // update_load_tags
+
+    #[test]
+    fn test_format_load_sorted() {
+        let formatted = format("{% load z y x %}\n", None);
+        assert_eq!(formatted, "{% load x y z %}\n");
+    }
+
+    #[test]
+    fn test_format_load_whitespace_cleaned() {
+        let formatted = format("{% load   x  y %}\n", None);
+        assert_eq!(formatted, "{% load x y %}\n");
+    }
+
+    #[test]
+    fn test_format_load_consecutive_merged() {
+        let formatted = format("{% load x %}{% load y %}\n", None);
+        assert_eq!(formatted, "{% load x y %}\n");
+    }
+
+    #[test]
+    fn test_format_load_consecutive_space_merged() {
+        let formatted = format("{% load x %} {% load y %}\n", None);
+        assert_eq!(formatted, "{% load x y %}\n");
+    }
+
+    #[test]
+    fn test_format_load_consecutive_newline_merged() {
+        let formatted = format("{% load x %}\n{% load y %}\n", None);
+        assert_eq!(formatted, "{% load x y %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_too_short_untouched() {
+        let formatted = format("{% load from a %}\n", None);
+        assert_eq!(formatted, "{% load from a %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_incorrect_untouched() {
+        let formatted = format("{% load c b from a thing %}\n", None);
+        assert_eq!(formatted, "{% load c b from a thing %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_sorted() {
+        let formatted = format("{% load c b from a %}\n", None);
+        assert_eq!(formatted, "{% load b c from a %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_unmerged_plain() {
+        let formatted = format("{% load b from a %}\n{% load c %}\n", None);
+        assert_eq!(formatted, "{% load b from a %}\n{% load c %}\n");
+    }
+
+    #[test]
+    fn test_format_load_plain_unmerged_from() {
+        let formatted = format("{% load c %}\n{% load b from a %}\n", None);
+        assert_eq!(formatted, "{% load c %}\n{% load b from a %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_unmerged_from() {
+        let formatted = format("{% load b from a %}\n{% load d from c %}\n", None);
+        assert_eq!(formatted, "{% load b from a %}\n{% load d from c %}\n");
+    }
+
+    #[test]
+    fn test_format_load_trailing_empty_lines_left() {
+        let formatted = format("{% load albumen %}\n\n{% albu %}\n", None);
+        assert_eq!(formatted, "{% load albumen %}\n\n{% albu %}\n");
+    }
+
+    #[test]
+    fn test_format_load_admin_static_migrated() {
+        let formatted = format("{% load admin_static %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_admin_static_not_migrated() {
+        let formatted = format("{% load admin_static %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load admin_static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_staticfiles_migrated() {
+        let formatted = format("{% load staticfiles %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_staticfiles_not_migrated() {
+        let formatted = format("{% load staticfiles %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load staticfiles %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_admin_static_migrated() {
+        let formatted = format("{% load static from admin_static %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static from static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_admin_static_not_migrated() {
+        let formatted = format("{% load static from admin_static %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load static from admin_static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_staticfiles_migrated() {
+        let formatted = format("{% load static from staticfiles %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static from static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_staticfiles_not_migrated() {
+        let formatted = format("{% load static from staticfiles %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load static from staticfiles %}\n");
+    }
+
+    // update_endblock_labels
+
+    #[test]
+    fn test_format_block_no_label() {
+        let formatted = format("{% block %}\n{% endblock %}\n", None);
+        assert_eq!(formatted, "{% block %}\n{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_format_endblock_broken() {
+        let formatted = format("{% endblock %}\n", None);
+        assert_eq!(formatted, "{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_format_endblock_broken_nesting() {
+        let formatted = format("{% block a %}\n{% endblock b %}\n", None);
+        assert_eq!(formatted, "{% block a %}\n{% endblock b %}\n");
+    }
+
+    #[test]
+    fn test_format_endblock_label_added() {
+        let formatted = format("{% block h %}\n{% endblock %}\n", None);
+        assert_eq!(formatted, "{% block h %}\n{% endblock h %}\n");
+    }
+
+    #[test]
+    fn test_format_endblock_label_added_nested() {
+        let formatted = format(
+            "{% block h %}\n{% block i %}\n{% endblock %}\n{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% block h %}\n{% block i %}\n{% endblock i %}\n{% endblock h %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_endblock_label_removed() {
+        let formatted = format("{% block h %}i{% endblock h %}\n", None);
+        assert_eq!(formatted, "{% block h %}i{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_format_endblock_with_blocktranslate() {
+        let formatted = format(
+            "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock h %}\n"
+        );
+    }
+
+    // update_top_level_block_indentation
 
     #[test]
     fn test_format_extends_unindented() {
@@ -1436,34 +1356,34 @@ mod tests {
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}\n  yellow\n{% endblock yolk %}\n\n{% block white %}\n    protein\n{% endblock white %}\n");
     }
 
-    // adjust_top_level_block_spacing
+    // update_top_level_block_spacing
 
     #[test]
-    fn test_adjust_top_level_block_spacing_no_change() {
+    fn test_update_top_level_block_spacing_no_change() {
         let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
     }
 
     #[test]
-    fn test_adjust_top_level_block_spacing_add_line() {
+    fn test_update_top_level_block_spacing_add_line() {
         let formatted = format("{% extends 'egg.html' %}\n{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
     }
 
     #[test]
-    fn test_adjust_top_level_block_spacing_remove_extra_lines() {
+    fn test_update_top_level_block_spacing_remove_extra_lines() {
         let formatted = format("{% extends 'egg.html' %}\n\n\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
     }
 
     #[test]
-    fn test_adjust_top_level_block_spacing_nested_blocks() {
+    fn test_update_top_level_block_spacing_nested_blocks() {
         let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n");
     }
 
     #[test]
-    fn test_adjust_top_level_block_spacing_no_extends() {
+    fn test_update_top_level_block_spacing_no_extends() {
         let formatted = format(
             "{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n",
             None,
@@ -1475,19 +1395,19 @@ mod tests {
     }
 
     #[test]
-    fn test_adjust_top_level_block_spacing_content() {
+    fn test_update_top_level_block_spacing_content() {
         let formatted = format(
-            "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n",
-            None,
-        );
+                "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n",
+                None,
+            );
         assert_eq!(
-            formatted,
-            "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n"
-        );
+                formatted,
+                "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n"
+            );
     }
 
     #[test]
-    fn test_adjust_top_level_block_spacing_comment() {
+    fn test_update_top_level_block_spacing_comment() {
         let formatted = format(
             "{% extends 'egg.html' %}\n{# bla #}\n{% block yolk %}Sunny side up{% endblock %}\n",
             None,
@@ -1498,7 +1418,7 @@ mod tests {
         );
     }
 
-    // format output phase
+    // Final build
 
     #[test]
     fn test_format_spaces_added() {
@@ -1522,5 +1442,97 @@ mod tests {
             formatted,
             "a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}\n"
         );
+    }
+
+    // format_variables
+
+    #[test]
+    fn test_format_variables_constant_int() {
+        let formatted = format("{{ 1 }}\n", None);
+        assert_eq!(formatted, "{{ 1 }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_float() {
+        let formatted = format("{{ 1.23 }}\n", None);
+        assert_eq!(formatted, "{{ 1.23 }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_float_negative() {
+        let formatted = format("{{ -1.23 }}\n", None);
+        assert_eq!(formatted, "{{ -1.23 }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_str() {
+        let formatted = format("{{ 'egg' }}\n", None);
+        assert_eq!(formatted, "{{ 'egg' }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_constant_str_translated() {
+        let formatted = format("{{ _('egg') }}\n", None);
+        assert_eq!(formatted, "{{ _('egg') }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_var() {
+        let formatted = format("{{ egg }}\n", None);
+        assert_eq!(formatted, "{{ egg }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_var_attr() {
+        let formatted = format("{{ egg.shell }}\n", None);
+        assert_eq!(formatted, "{{ egg.shell }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_variable_filter_no_arg() {
+        let formatted = format("{{ egg | crack }}\n", None);
+        assert_eq!(formatted, "{{ egg|crack }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_variable_filter_constant_arg() {
+        let formatted = format("{{ egg | crack:'fully' }}\n", None);
+        assert_eq!(formatted, "{{ egg|crack:'fully' }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_variable_filter_variable_arg() {
+        let formatted = format("{{ egg | crack:amount }}\n", None);
+        assert_eq!(formatted, "{{ egg|crack:amount }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_syntax_error_start() {
+        let formatted = format("{{ ?egg | crack }}\n", None);
+        assert_eq!(formatted, "{{ ?egg | crack }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_syntax_error_end() {
+        let formatted = format("{{ egg | crack? }}\n", None);
+        assert_eq!(formatted, "{{ egg | crack? }}\n");
+    }
+
+    #[test]
+    fn test_format_block_bits() {
+        let formatted = format("{%  if breakfast  ==  'egg'  %}\n", None);
+        assert_eq!(formatted, "{% if breakfast == 'egg' %}\n");
+    }
+
+    #[test]
+    fn test_format_block_bits_spaces_in_string() {
+        let formatted = format("{% if breakfast == 'egg  mcmuffin' %}\n", None);
+        assert_eq!(formatted, "{% if breakfast == 'egg  mcmuffin' %}\n");
+    }
+
+    #[test]
+    fn test_format_block_bits_spaces_in_translated_string() {
+        let formatted = format("{% if breakfast == _('egg  mcmuffin') %}\n", None);
+        assert_eq!(formatted, "{% if breakfast == _('egg  mcmuffin') %}\n");
     }
 }
