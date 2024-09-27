@@ -60,7 +60,7 @@ You can also install Djade as a `pre-commit <https://pre-commit.com/>`__ hook.
 
 The separate repository enables installation without compiling the Rust code.
 
-The default configuration uses pre-commit’s |files option|__ to pick up on any file in a directory called ``templates`` (`source <https://github.com/adamchainz/djade-pre-commit/blob/main/.pre-commit-hooks.yaml>`__).
+The default configuration uses pre-commit’s |files option|__ to pick up all text files in directories called ``templates`` (`source <https://github.com/adamchainz/djade-pre-commit/blob/main/.pre-commit-hooks.yaml>`__).
 You may wish to override this if you have templates in different directories by adding ``files`` to the hook configuration in your ``.pre-commit-config.yaml`` file.
 
 .. |files option| replace:: ``files`` option
