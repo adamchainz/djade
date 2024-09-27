@@ -419,58 +419,89 @@ fn update_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
     while i < tokens.len() {
         if let Token::Block { ref bits, .. } = tokens[i] {
             if bits[0] == "load" {
-                let mut j = i + 1;
-                let mut to_merge = vec![i];
-                while j < tokens.len() {
-                    match &tokens[j] {
-                        Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
-                        Token::Block { bits, .. } if bits[0] == "load" => {
-                            to_merge.push(j);
-                            j += 1
+                // load ... from ...
+                if bits.contains(&"from".to_string()) {
+                    if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
+                        let mut library = bits[bits.len() - 1].as_str();
+                        if let Some(version) = target_version {
+                            if version >= (2, 1)
+                                && (library == "admin_static" || library == "staticfiles")
+                            {
+                                library = "static";
+                            }
                         }
-                        _ => break,
-                    }
-                }
-                if j > 0 {
-                    if let Token::Text { .. } = tokens[j - 1] {
-                        j -= 1;
-                    }
-                }
 
-                let mut parts: Vec<String> = to_merge
-                    .iter()
-                    .filter_map(|&idx| {
-                        if let Token::Block { bits, .. } = &tokens[idx] {
-                            Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
-                        } else {
-                            None
+                        let mut parts = bits[1..bits.len() - 2].to_vec();
+
+                        parts.sort_unstable();
+                        parts.dedup();
+                        parts.insert(0, "load".to_string());
+                        parts.push("from".to_string());
+                        parts.push(library.to_string());
+
+                        if let Token::Block { bits, .. } = &mut tokens[i] {
+                            bits.clear();
+                            bits.extend(parts);
                         }
-                    })
-                    .flatten()
-                    .collect();
-
-                if let Some(version) = target_version {
-                    if version >= (2, 1) {
-                        parts = parts
-                            .into_iter()
-                            .map(|part| match part.as_str() {
-                                "admin_static" | "staticfiles" => "static".to_string(),
-                                _ => part,
-                            })
-                            .collect();
                     }
+                // load ...
+                } else {
+                    let mut j = i + 1;
+                    let mut to_merge = vec![i];
+                    while j < tokens.len() {
+                        match &tokens[j] {
+                            Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
+                            Token::Block { bits, .. } if bits[0] == "load" => {
+                                if bits.contains(&"from".to_string()) {
+                                    break;
+                                }
+                                to_merge.push(j);
+                                j += 1
+                            }
+                            _ => break,
+                        }
+                    }
+                    if j > 0 {
+                        if let Token::Text { .. } = tokens[j - 1] {
+                            j -= 1;
+                        }
+                    }
+
+                    let mut parts: Vec<String> = to_merge
+                        .iter()
+                        .filter_map(|&idx| {
+                            if let Token::Block { bits, .. } = &tokens[idx] {
+                                Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten()
+                        .collect();
+
+                    if let Some(version) = target_version {
+                        if version >= (2, 1) {
+                            parts = parts
+                                .into_iter()
+                                .map(|part| match part.as_str() {
+                                    "admin_static" | "staticfiles" => "static".to_string(),
+                                    _ => part,
+                                })
+                                .collect();
+                        }
+                    }
+
+                    parts.sort_unstable();
+                    parts.dedup();
+                    parts.insert(0, "load".to_string());
+
+                    if let Token::Block { bits, .. } = &mut tokens[i] {
+                        bits.clear();
+                        bits.extend(parts);
+                    }
+
+                    tokens.drain(i + 1..j);
                 }
-
-                parts.sort_unstable();
-                parts.dedup();
-                parts.insert(0, "load".to_string());
-
-                if let Token::Block { bits, .. } = &mut tokens[i] {
-                    bits.clear();
-                    bits.extend(parts);
-                }
-
-                tokens.drain(i + 1..j);
             }
         }
         i += 1;
@@ -929,6 +960,42 @@ mod tests {
     }
 
     #[test]
+    fn test_format_load_from_too_short_untouched() {
+        let formatted = format("{% load from a %}\n", None);
+        assert_eq!(formatted, "{% load from a %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_incorrect_untouched() {
+        let formatted = format("{% load c b from a thing %}\n", None);
+        assert_eq!(formatted, "{% load c b from a thing %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_sorted() {
+        let formatted = format("{% load c b from a %}\n", None);
+        assert_eq!(formatted, "{% load b c from a %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_unmerged_plain() {
+        let formatted = format("{% load b from a %}\n{% load c %}\n", None);
+        assert_eq!(formatted, "{% load b from a %}\n{% load c %}\n");
+    }
+
+    #[test]
+    fn test_format_load_plain_unmerged_from() {
+        let formatted = format("{% load c %}\n{% load b from a %}\n", None);
+        assert_eq!(formatted, "{% load c %}\n{% load b from a %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_unmerged_from() {
+        let formatted = format("{% load b from a %}\n{% load d from c %}\n", None);
+        assert_eq!(formatted, "{% load b from a %}\n{% load d from c %}\n");
+    }
+
+    #[test]
     fn test_format_load_trailing_empty_lines_left() {
         let formatted = format("{% load albumen %}\n\n{% albu %}\n", None);
         assert_eq!(formatted, "{% load albumen %}\n\n{% albu %}\n");
@@ -956,6 +1023,30 @@ mod tests {
     fn test_format_load_staticfiles_not_migrated() {
         let formatted = format("{% load staticfiles %}\n", Some((2, 0)));
         assert_eq!(formatted, "{% load staticfiles %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_admin_static_migrated() {
+        let formatted = format("{% load static from admin_static %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static from static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_admin_static_not_migrated() {
+        let formatted = format("{% load static from admin_static %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load static from admin_static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_staticfiles_migrated() {
+        let formatted = format("{% load static from staticfiles %}\n", Some((2, 1)));
+        assert_eq!(formatted, "{% load static from static %}\n");
+    }
+
+    #[test]
+    fn test_format_load_from_staticfiles_not_migrated() {
+        let formatted = format("{% load static from staticfiles %}\n", Some((2, 0)));
+        assert_eq!(formatted, "{% load static from staticfiles %}\n");
     }
 
     // fix_endblock_labels
