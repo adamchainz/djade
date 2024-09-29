@@ -321,6 +321,7 @@ fn split_contents(contents: &str) -> Vec<String> {
 
 fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     // Lex
+    let newline = detect_newline(content);
     let mut tokens = lex(content);
 
     // Fixers
@@ -331,11 +332,11 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     migrate_static_load_tags(&mut tokens, target_version);
 
     // Formatters
-    update_leading_trailing_whitespace(&mut tokens);
+    update_leading_trailing_whitespace(&mut tokens, newline);
     update_load_tags(&mut tokens);
     update_endblock_labels(&mut tokens);
     update_top_level_block_indentation(&mut tokens);
-    update_top_level_block_spacing(&mut tokens);
+    update_top_level_block_spacing(&mut tokens, newline);
 
     // Final build
     let mut result = String::new();
@@ -362,6 +363,13 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
         }
     }
     result
+}
+
+fn detect_newline(content: &str) -> &str {
+    match content.split_once('\n') {
+        Some((s, _)) if s.ends_with('\r') => "\r\n",
+        _ => "\n",
+    }
 }
 
 #[inline(always)]
@@ -580,7 +588,7 @@ fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
 
 static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
 
-fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>) {
+fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>, newline: &str) {
     if let Some(mut token) = tokens.first_mut() {
         if let Token::Text { contents, .. } = &mut token {
             *contents = (&*LEADING_BLANK_LINES).replace(contents, "").to_string();
@@ -589,10 +597,10 @@ fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>) {
 
     if let Some(mut token) = tokens.last_mut() {
         if let Token::Text { contents, .. } = &mut token {
-            *contents = contents.trim_end().to_string() + "\n";
+            *contents = format!("{}{}", contents.trim_end(), newline);
         } else {
             tokens.push(Token::Text {
-                contents: "\n".to_string(),
+                contents: newline.to_string(),
                 lineno: 0,
             });
         }
@@ -748,7 +756,7 @@ fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
     }
 }
 
-fn update_top_level_block_spacing(tokens: &mut Vec<Token>) {
+fn update_top_level_block_spacing(tokens: &mut Vec<Token>, newline: &str) {
     let mut has_extends = false;
     let mut depth = 0;
     let mut last_top_level_tag = None;
@@ -767,7 +775,7 @@ fn update_top_level_block_spacing(tokens: &mut Vec<Token>) {
                             if last_end == i - 2 {
                                 if let Token::Text { contents, .. } = &mut tokens[i - 1] {
                                     if contents.trim().is_empty() {
-                                        *contents = "\n\n".to_string();
+                                        *contents = format!("{}{}", newline, newline);
                                     }
                                 }
                             }
@@ -823,6 +831,23 @@ mod tests {
 
         let output = String::from_utf8(buffer).unwrap();
         assert!(output.contains("is non-utf-8 (not supported)"));
+    }
+
+    // detect_newline
+
+    #[test]
+    fn test_detect_newline_defaults_to_line_feed() {
+        assert_eq!(detect_newline(""), "\n");
+    }
+
+    #[test]
+    fn test_detect_newline_with_carriage_return_first() {
+        assert_eq!(detect_newline("foo\r\nbar\n"), "\r\n");
+    }
+
+    #[test]
+    fn test_detect_newline_with_line_feed_first() {
+        assert_eq!(detect_newline("foo\nbar\r\n"), "\n");
     }
 
     // Fixers
@@ -1202,6 +1227,12 @@ mod tests {
     }
 
     #[test]
+    fn test_format_trim_whitespace_mixed_crlf() {
+        let formatted = format(" \r\n {% yolk %}  \n  ", None);
+        assert_eq!(formatted, " {% yolk %}\r\n");
+    }
+
+    #[test]
     fn test_format_preserve_content_whitespace() {
         let formatted = format("{% block crack %}\n  Yum  \n{% endblock crack %}", None);
         assert_eq!(
@@ -1220,6 +1251,12 @@ mod tests {
     fn test_format_whitespace_only_template() {
         let formatted = format("  \t\n  ", None);
         assert_eq!(formatted, "\n");
+    }
+
+    #[test]
+    fn test_format_whitespace_only_template_with_crlf() {
+        let formatted = format("  \t\r\n  ", None);
+        assert_eq!(formatted, "\r\n");
     }
 
     #[test]
@@ -1379,6 +1416,18 @@ mod tests {
     }
 
     #[test]
+    fn test_format_top_level_blocks_unindented_with_crlf() {
+        let formatted = format(
+            "{% extends 'egg.html' %}\r\n\r\n  {% block yolk %}\r\n    yellow\r\n  {% endblock yolk %}\r\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\r\n\r\n{% block yolk %}\r\n    yellow\r\n{% endblock yolk %}\r\n"
+        );
+    }
+
+    #[test]
     fn test_format_second_level_blocks_indented() {
         let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n");
@@ -1417,9 +1466,21 @@ mod tests {
     }
 
     #[test]
+    fn test_update_top_level_block_spacing_add_line_with_crlf_first() {
+        let formatted = format("{% extends 'egg.html' %}\r\n{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\r\n\r\n{% block white %}Albumin{% endblock %}\r\n");
+    }
+
+    #[test]
     fn test_update_top_level_block_spacing_remove_extra_lines() {
         let formatted = format("{% extends 'egg.html' %}\n\n\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
+    }
+
+    #[test]
+    fn test_update_top_level_block_spacing_remove_extra_line_with_crlf_first() {
+        let formatted = format("{% extends 'egg.html' %}\r\n\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n", None);
+        assert_eq!(formatted, "{% extends 'egg.html' %}\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\r\n\r\n{% block white %}Albumin{% endblock %}\r\n");
     }
 
     #[test]
