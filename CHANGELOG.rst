@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.1.1 (2024-09-29)
+------------------
+
 * Detect and use the file’s newline style (Unix ``\n`` versus Windows ``\r\n``).
 
   Thanks to George Kussumoto in `PR #73 <https://github.com/adamchainz/djade/pull/73>`__.
