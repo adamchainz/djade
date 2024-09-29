@@ -319,16 +319,9 @@ fn split_contents(contents: &str) -> Vec<String> {
     split
 }
 
-fn detect_line_end(content: &str) -> &str {
-    match content.split_once('\n') {
-        Some((s, _)) if s.ends_with('\r') => "\r\n",
-        _ => "\n",
-    }
-}
-
 fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
-    let line_end = detect_line_end(content);
     // Lex
+    let newline = detect_newline(content);
     let mut tokens = lex(content);
 
     // Fixers
@@ -339,11 +332,11 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     migrate_static_load_tags(&mut tokens, target_version);
 
     // Formatters
-    update_leading_trailing_whitespace(&mut tokens, line_end);
+    update_leading_trailing_whitespace(&mut tokens, newline);
     update_load_tags(&mut tokens);
     update_endblock_labels(&mut tokens);
     update_top_level_block_indentation(&mut tokens);
-    update_top_level_block_spacing(&mut tokens, line_end);
+    update_top_level_block_spacing(&mut tokens, newline);
 
     // Final build
     let mut result = String::new();
@@ -370,6 +363,13 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
         }
     }
     result
+}
+
+fn detect_newline(content: &str) -> &str {
+    match content.split_once('\n') {
+        Some((s, _)) if s.ends_with('\r') => "\r\n",
+        _ => "\n",
+    }
 }
 
 #[inline(always)]
@@ -588,7 +588,7 @@ fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
 
 static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
 
-fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>, line_end: &str) {
+fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>, newline: &str) {
     if let Some(mut token) = tokens.first_mut() {
         if let Token::Text { contents, .. } = &mut token {
             *contents = (&*LEADING_BLANK_LINES).replace(contents, "").to_string();
@@ -597,10 +597,10 @@ fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>, line_end: &str) {
 
     if let Some(mut token) = tokens.last_mut() {
         if let Token::Text { contents, .. } = &mut token {
-            *contents = format!("{}{}", contents.trim_end(), line_end);
+            *contents = format!("{}{}", contents.trim_end(), newline);
         } else {
             tokens.push(Token::Text {
-                contents: line_end.to_string(),
+                contents: newline.to_string(),
                 lineno: 0,
             });
         }
@@ -756,7 +756,7 @@ fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
     }
 }
 
-fn update_top_level_block_spacing(tokens: &mut Vec<Token>, line_end: &str) {
+fn update_top_level_block_spacing(tokens: &mut Vec<Token>, newline: &str) {
     let mut has_extends = false;
     let mut depth = 0;
     let mut last_top_level_tag = None;
@@ -775,7 +775,7 @@ fn update_top_level_block_spacing(tokens: &mut Vec<Token>, line_end: &str) {
                             if last_end == i - 2 {
                                 if let Token::Text { contents, .. } = &mut tokens[i - 1] {
                                     if contents.trim().is_empty() {
-                                        *contents = format!("{}{}", line_end, line_end);
+                                        *contents = format!("{}{}", newline, newline);
                                     }
                                 }
                             }
@@ -833,21 +833,21 @@ mod tests {
         assert!(output.contains("is non-utf-8 (not supported)"));
     }
 
-    // detect_line_end
+    // detect_newline
 
     #[test]
-    fn test_detect_line_end_defaults_to_line_feed() {
-        assert_eq!(detect_line_end(""), "\n");
+    fn test_detect_newline_defaults_to_line_feed() {
+        assert_eq!(detect_newline(""), "\n");
     }
 
     #[test]
-    fn test_detect_line_end_with_carriage_return_first() {
-        assert_eq!(detect_line_end("foo\r\nbar\n"), "\r\n");
+    fn test_detect_newline_with_carriage_return_first() {
+        assert_eq!(detect_newline("foo\r\nbar\n"), "\r\n");
     }
 
     #[test]
-    fn test_detect_line_end_with_line_feed_first() {
-        assert_eq!(detect_line_end("foo\nbar\r\n"), "\n");
+    fn test_detect_newline_with_line_feed_first() {
+        assert_eq!(detect_newline("foo\nbar\r\n"), "\n");
     }
 
     // Fixers
