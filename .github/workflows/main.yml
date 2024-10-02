@@ -32,6 +32,7 @@ jobs:
       uses: astral-sh/setup-uv@v3
       with:
         enable-cache: true
+        cache-dependency-glob: tests/requirements/*.txt
 
     - name: Check built command line
       run: |
@@ -135,6 +136,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          cache-dependency-glob: tests/requirements/*.txt
 
       - name: Verify dist files
         run: uvx twine check dist/*
