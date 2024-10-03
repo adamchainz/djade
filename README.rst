@@ -21,10 +21,12 @@ A Django template formatter.
 
     You can have any colour you like, as long as it’s [d]jade.
 
-Djade formats templates with a style based on the `template style guide <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__ in Django’s documentation.
-It’s built in Rust, which makes it fast: benchmarked taking 20ms to format 377 templates.
+Djade formats Django template syntax with a style based on the `template style guide <https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/#template-style>`__ in Django’s documentation.
+It does not format HTML or other templated languages.
 
-Read more in `the introductory post <https://adamj.eu/tech/2024/09/26/django-introducing-djade/>`__.
+Djade is fast because it iss built in Rust: benchmarked taking 20ms to format 377 templates.
+
+Read more in `the introductory post <https://adamj.eu/tech/2024/09/26/django-introducing-djade/>`__, or below.
 
 ----
 
