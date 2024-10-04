@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.2.0 (2024-10-04)
+------------------
+
 * Add ``--check`` option to report if changes would be made.
 
  Thanks to Coen van der Kamp for the request in `Issue #79 <https://github.com/adamchainz/djade/issues/79>`__.
