@@ -95,8 +95,7 @@ Pass a list of template files to format them:
 .. code-block:: console
 
     $ djade --target-version 5.1 templates/**/*.html
-    Rewriting templates/locomotives/steam_engine.html
-    Rewriting templates/locomotives/diesel.html
+    3 files reformatted, 330 files already formatted
 
 Djade can also upgrade some old template syntax.
 Add the ``--target-version`` option with your Django version as ``<major>.<minor>`` to enable applicable fixers:
@@ -104,7 +103,7 @@ Add the ``--target-version`` option with your Django version as ``<major>.<minor
 .. code-block:: console
 
     $ djade --target-version 5.1 templates/**/*.html
-    Rewriting templates/locomotives/steam_engine.html
+    1 file reformatted, 332 files already formatted
 
 Djade does not have any ability to recurse through directories.
 Use the pre-commit integration, globbing, or another technique to apply it to many files.
