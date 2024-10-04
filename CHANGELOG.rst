@@ -2,12 +2,7 @@
 Changelog
 =========
 
-* Migrate ``{% with %}`` tags from the legacy ``as`` syntax to new ``=`` syntax.
-
-  .. code-block:: diff
-
-      -{% with engines.count as total %}
-      +{% with total=engines.count %}
+* Migrate ``{% with %}`` and ``{% blocktranslate %}`` tags from the legacy ``as`` syntax to new ``=`` syntax.
 
   `Issue #82 <https://github.com/adamchainz/djade/issues/82>`__.
 

@@ -369,7 +369,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
     migrate_static_load_tags(&mut tokens, target_version);
-    migrate_with_tags(&mut tokens);
+    migrate_assignments(&mut tokens);
 
     // Formatters
     update_leading_trailing_whitespace(&mut tokens, newline);
@@ -624,14 +624,55 @@ fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
     }
 }
 
-fn migrate_with_tags(tokens: &mut Vec<Token>) {
-    // Django 1.3+, so always active and no need for version check.
-
+fn migrate_assignments(tokens: &mut Vec<Token>) {
     for token in tokens.iter_mut() {
         if let Token::Block { bits, .. } = token {
-            if bits[0] == "with" {
-                let mut new_bits = vec!["with".to_string()];
-                let mut i = 1;
+            match bits[0].as_str() {
+                "with" => migrate_assignments_with_tag(bits),
+                "blocktrans" | "blocktranslate" => migrate_assignments_blocktranslate_tag(bits),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn migrate_assignments_with_tag(bits: &mut Vec<String>) {
+    let mut new_bits = vec!["with".to_string()];
+    let mut i = 1;
+    while i < bits.len() {
+        if i + 2 < bits.len() && bits[i + 1] == "as" {
+            // Legacy format: "value as key"
+            new_bits.push(format!("{}={}", bits[i + 2], bits[i]));
+            i += 3;
+        } else if bits[i].contains('=') {
+            // Modern format: "key=value"
+            new_bits.push(bits[i].clone());
+            i += 1;
+        } else {
+            // Not a keyword argument, stop processing
+            new_bits.extend(bits[i..].iter().cloned());
+            break;
+        }
+
+        // Check for "and" between arguments
+        if i < bits.len() && bits[i] == "and" {
+            i += 1;
+        }
+    }
+    *bits = new_bits;
+}
+
+fn migrate_assignments_blocktranslate_tag(bits: &mut Vec<String>) {
+    let mut new_bits = vec![bits[0].clone()];
+    let mut i = 1;
+    let mut found_with = false;
+    let mut found_count = false;
+    while i < bits.len() {
+        match bits[i].as_str() {
+            "with" if !found_with => {
+                found_with = true;
+                new_bits.push("with".to_string());
+                i += 1;
                 while i < bits.len() {
                     if i + 2 < bits.len() && bits[i + 1] == "as" {
                         // Legacy format: "value as key"
@@ -642,20 +683,37 @@ fn migrate_with_tags(tokens: &mut Vec<Token>) {
                         new_bits.push(bits[i].clone());
                         i += 1;
                     } else {
-                        // Not a keyword argument, stop processing
-                        new_bits.extend(bits[i..].iter().cloned());
                         break;
                     }
-
                     // Check for "and" between arguments
                     if i < bits.len() && bits[i] == "and" {
                         i += 1;
                     }
                 }
-                *bits = new_bits;
+            }
+            "count" if !found_count => {
+                found_count = true;
+                new_bits.push("count".to_string());
+                i += 1;
+                if i < bits.len() {
+                    if i + 2 < bits.len() && bits[i + 1] == "as" {
+                        // Legacy format: "value as count"
+                        new_bits.push(format!("{}={}", bits[i + 2], bits[i]));
+                        i += 2;
+                    } else if bits[i].contains('=') {
+                        // Modern format: "key=value"
+                        new_bits.push(bits[i].clone());
+                    }
+                }
+                i += 1;
+            }
+            _ => {
+                new_bits.push(bits[i].clone());
+                i += 1;
             }
         }
     }
+    *bits = new_bits;
 }
 
 // Formatters
@@ -1370,10 +1428,10 @@ mod tests {
         assert_eq!(formatted, "{% load static from staticfiles %}\n");
     }
 
-    // migrate_with_tags
+    // migrate_assignments
 
     #[test]
-    fn test_migrate_with_tags_single_legacy() {
+    fn test_migrate_assignments_with_single_legacy() {
         let formatted = format(
             "{% with engines.count as total %}{{ total }}{% endwith %}\n",
             None,
@@ -1385,19 +1443,19 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_with_tags_multiple_legacy() {
+    fn test_migrate_assignments_with_multiple_legacy() {
         let formatted = format("{% with engines.count as total and cars.count as vehicles %}{{ total }} {{ vehicles }}{% endwith %}\n", None);
         assert_eq!(formatted, "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n");
     }
 
     #[test]
-    fn test_migrate_with_tags_mixed() {
+    fn test_migrate_assignments_with_mixed() {
         let formatted = format("{% with engines.count as total and vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n", None);
         assert_eq!(formatted, "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n");
     }
 
     #[test]
-    fn test_migrate_with_tags_new_unchanged() {
+    fn test_migrate_assignments_with_new_unchanged() {
         let formatted = format(
             "{% with total=engines.count %}{{ total }}{% endwith %}\n",
             None,
@@ -1409,13 +1467,13 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_with_tags_nested() {
+    fn test_migrate_assignments_with_nested() {
         let formatted = format("{% with outer=1 %}{% with 2 as inner %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n", None);
         assert_eq!(formatted, "{% with outer=1 %}{% with inner=2 %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n");
     }
 
     #[test]
-    fn test_migrate_with_tags_unknown_end() {
+    fn test_migrate_assignments_with_unknown_end() {
         let formatted = format(
             "{% with 'Go' as exclamation loud %}{{ exclamation }}{% endwith %}\n",
             None,
@@ -1427,7 +1485,7 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_with_tags_unknown_start() {
+    fn test_migrate_assignments_with_unknown_start() {
         let formatted = format(
             "{% with loud 'Go' as exclamation %}{{ exclamation }}{% endwith %}\n",
             None,
@@ -1436,6 +1494,87 @@ mod tests {
             formatted,
             "{% with loud 'Go' as exclamation %}{{ exclamation }}{% endwith %}\n"
         );
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktrans_legacy_with() {
+        let formatted = format(
+            "{% blocktrans with engine.name as name %}Hello {{ name }}{% endblocktrans %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktrans with name=engine.name %}Hello {{ name }}{% endblocktrans %}\n"
+        );
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_legacy_with() {
+        let formatted = format("{% blocktranslate with engine.name as name %}Hello {{ name }}{% endblocktranslate %}\n", None);
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name=engine.name %}Hello {{ name }}{% endblocktranslate %}\n"
+        );
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_modern_with() {
+        let formatted = format(
+            "{% blocktranslate with name=engine.name %}Hello {{ name }}{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name=engine.name %}Hello {{ name }}{% endblocktranslate %}\n"
+        );
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_legacy_count() {
+        let formatted = format("{% blocktranslate count engines.count as total %}{{ total }} user{% plural %}{{ total }} users{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate count total=engines.count %}{{ total }} user{% plural %}{{ total }} users{% endblocktranslate %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_modern_count() {
+        let formatted = format("{% blocktranslate count total=engines.count %}{{ total }} engine{% plural %}{{ total }} engines{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate count total=engines.count %}{{ total }} engine{% plural %}{{ total }} engines{% endblocktranslate %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_legacy_with_and_count() {
+        let formatted = format("{% blocktranslate with engine.name as name count engines.count as total %}Hello {{ name }}, there is {{ total }} engine{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engine{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_modern_with_and_count() {
+        let formatted = format("{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engines{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engines{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_multiple_with_legacy() {
+        let formatted = format("{% blocktranslate with engine.name as name and engine.number as number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate with name=engine.name number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_multiple_with_mixed() {
+        let formatted = format("{% blocktranslate with engine.name as name and number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate with name=engine.name number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_with_filters() {
+        let formatted = format("{% blocktranslate with engine.name|upper as shouty %}HELLO {{ shouty }}{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate with shouty=engine.name|upper %}HELLO {{ shouty }}{% endblocktranslate %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_context() {
+        let formatted = format("{% blocktranslate with name=engine.name context 'greeting' %}Hello {{ name }}{% endblocktranslate %}\n", None);
+        assert_eq!(formatted, "{% blocktranslate with name=engine.name context 'greeting' %}Hello {{ name }}{% endblocktranslate %}\n");
     }
 
     // Formatters
