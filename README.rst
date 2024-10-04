@@ -393,3 +393,8 @@ Djade rewrites the older ``as`` syntax to the newer ``=`` one:
     +{% with total=engines.count %}
          ...
      {% endwith %}
+
+    -{% blocktranslate with engine.colour as colour %}
+    +{% blocktranslate with colour=engine.colour %}
+         ...
+     {% endblocktranslate %}
