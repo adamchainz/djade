@@ -34,9 +34,14 @@ fn main_impl(args: &cli::Args, writer: &mut dyn std::io::Write) -> i32 {
             Ok(content) => {
                 let formatted = format(&content, target_version);
                 if formatted != content {
-                    writeln!(writer, "Rewriting {}", filename).unwrap();
-                    returncode = 1;
-                    fs::write(filename, formatted).expect("Could not write {filename}");
+                    if args.check {
+                        writeln!(writer, "Would reformat: {}", filename).unwrap();
+                        returncode = 1;
+                    } else {
+                        writeln!(writer, "Reformatting: {}", filename).unwrap();
+                        fs::write(filename, formatted).expect("Could not write {filename}");
+                        returncode = 1;
+                    }
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
@@ -807,7 +812,60 @@ mod tests {
     // main
 
     #[test]
-    fn test_non_utf8_file() {
+    fn test_main_no_formatting() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("tank-engine.html");
+        fs::write(&file_path, "{{ name }}\n").unwrap();
+
+        // Capture stderr
+        let mut buffer = Vec::new();
+        let mut writer = std::io::Cursor::new(&mut buffer);
+
+        // Run the main function with our non-UTF-8 file
+        let args = cli::Args {
+            filenames: vec![file_path.to_str().unwrap().to_string()],
+            target_version: None,
+            check: false,
+        };
+
+        let returncode = main_impl(&args, &mut writer);
+
+        assert_eq!(returncode, 0);
+        let output = String::from_utf8(buffer).unwrap();
+        assert_eq!(output, "");
+    }
+
+    #[test]
+    fn test_main_reformatted() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("tank-engine.html");
+        fs::write(&file_path, "{{name}}").unwrap();
+
+        // Capture stderr
+        let mut buffer = Vec::new();
+        let mut writer = std::io::Cursor::new(&mut buffer);
+
+        // Run the main function with our non-UTF-8 file
+        let args = cli::Args {
+            filenames: vec![file_path.to_str().unwrap().to_string()],
+            target_version: None,
+            check: false,
+        };
+
+        let returncode = main_impl(&args, &mut writer);
+
+        assert_eq!(returncode, 1);
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.starts_with("Reformatting: "));
+        assert!(output.ends_with("tank-engine.html\n"));
+
+        // Verify the file was changed
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "{{ name }}\n");
+    }
+
+    #[test]
+    fn test_main_non_utf8_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("non_utf8.txt");
 
@@ -823,6 +881,7 @@ mod tests {
         let args = cli::Args {
             filenames: vec![file_path.to_str().unwrap().to_string()],
             target_version: None,
+            check: false,
         };
 
         let returncode = main_impl(&args, &mut writer);
@@ -831,6 +890,33 @@ mod tests {
 
         let output = String::from_utf8(buffer).unwrap();
         assert!(output.contains("is non-utf-8 (not supported)"));
+    }
+
+    #[test]
+    fn test_main_check_option() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("tank-engine.html");
+        fs::write(&file_path, "{{name}}").unwrap();
+
+        let mut buffer = Vec::new();
+        let mut writer = std::io::Cursor::new(&mut buffer);
+
+        let args = cli::Args {
+            filenames: vec![file_path.to_str().unwrap().to_string()],
+            target_version: None,
+            check: true,
+        };
+
+        let returncode = main_impl(&args, &mut writer);
+
+        assert_eq!(returncode, 1);
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.starts_with("Would reformat: "));
+        assert!(output.ends_with("tank-engine.html\n"));
+
+        // Verify the file wasn't actually changed
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "{{name}}");
     }
 
     // detect_newline

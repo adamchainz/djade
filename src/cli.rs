@@ -18,6 +18,12 @@ pub struct Args {
         help = "The version of Django to target.",
     )]
     pub target_version: Option<String>,
+
+    #[arg(
+        long,
+        help = "Avoid writing any formatted files back. Instead, exit with a non-zero status code if any files would have been modified, and zero otherwise."
+    )]
+    pub check: bool,
 }
 
 #[cfg(test)]

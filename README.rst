@@ -136,6 +136,12 @@ Optional: the version of Django to target, in the format ``<major>.<minor>``.
 If provided, Djade enables its fixers for versions up to and including the target version.
 See the list of available versions with ``djade  --help``.
 
+``--check``
+-----------
+
+Avoid writing any formatted files back.
+Instead, exit with a non-zero status code if any files would have been modified, and zero otherwise.
+
 Formatting
 ==========
 
