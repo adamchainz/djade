@@ -369,6 +369,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     migrate_translation_tags(&mut tokens, target_version);
     migrate_ifequal_tags(&mut tokens, target_version);
     migrate_static_load_tags(&mut tokens, target_version);
+    migrate_with_tags(&mut tokens);
 
     // Formatters
     update_leading_trailing_whitespace(&mut tokens, newline);
@@ -618,6 +619,40 @@ fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+fn migrate_with_tags(tokens: &mut Vec<Token>) {
+    // Django 1.3+, so always active and no need for version check.
+
+    for token in tokens.iter_mut() {
+        if let Token::Block { bits, .. } = token {
+            if bits[0] == "with" {
+                let mut new_bits = vec!["with".to_string()];
+                let mut i = 1;
+                while i < bits.len() {
+                    if i + 2 < bits.len() && bits[i + 1] == "as" {
+                        // Legacy format: "value as key"
+                        new_bits.push(format!("{}={}", bits[i + 2], bits[i]));
+                        i += 3;
+                    } else if bits[i].contains('=') {
+                        // Modern format: "key=value"
+                        new_bits.push(bits[i].clone());
+                        i += 1;
+                    } else {
+                        // Not a keyword argument, stop processing
+                        new_bits.extend(bits[i..].iter().cloned());
+                        break;
+                    }
+
+                    // Check for "and" between arguments
+                    if i < bits.len() && bits[i] == "and" {
+                        i += 1;
+                    }
+                }
+                *bits = new_bits;
             }
         }
     }
@@ -1333,6 +1368,74 @@ mod tests {
     fn test_from_staticfiles_not_migrated() {
         let formatted = format("{% load static from staticfiles %}\n", Some((2, 0)));
         assert_eq!(formatted, "{% load static from staticfiles %}\n");
+    }
+
+    // migrate_with_tags
+
+    #[test]
+    fn test_migrate_with_tags_single_legacy() {
+        let formatted = format(
+            "{% with engines.count as total %}{{ total }}{% endwith %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% with total=engines.count %}{{ total }}{% endwith %}\n"
+        );
+    }
+
+    #[test]
+    fn test_migrate_with_tags_multiple_legacy() {
+        let formatted = format("{% with engines.count as total and cars.count as vehicles %}{{ total }} {{ vehicles }}{% endwith %}\n", None);
+        assert_eq!(formatted, "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n");
+    }
+
+    #[test]
+    fn test_migrate_with_tags_mixed() {
+        let formatted = format("{% with engines.count as total and vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n", None);
+        assert_eq!(formatted, "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n");
+    }
+
+    #[test]
+    fn test_migrate_with_tags_new_unchanged() {
+        let formatted = format(
+            "{% with total=engines.count %}{{ total }}{% endwith %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% with total=engines.count %}{{ total }}{% endwith %}\n"
+        );
+    }
+
+    #[test]
+    fn test_migrate_with_tags_nested() {
+        let formatted = format("{% with outer=1 %}{% with 2 as inner %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n", None);
+        assert_eq!(formatted, "{% with outer=1 %}{% with inner=2 %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n");
+    }
+
+    #[test]
+    fn test_migrate_with_tags_unknown_end() {
+        let formatted = format(
+            "{% with 'Go' as exclamation loud %}{{ exclamation }}{% endwith %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% with exclamation='Go' loud %}{{ exclamation }}{% endwith %}\n"
+        );
+    }
+
+    #[test]
+    fn test_migrate_with_tags_unknown_start() {
+        let formatted = format(
+            "{% with loud 'Go' as exclamation %}{{ exclamation }}{% endwith %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% with loud 'Go' as exclamation %}{{ exclamation }}{% endwith %}\n"
+        );
     }
 
     // Formatters
