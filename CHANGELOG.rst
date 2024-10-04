@@ -2,6 +2,15 @@
 Changelog
 =========
 
+* Migrate ``{% with %}`` tags from the legacy ``as`` syntax to new ``=`` syntax.
+
+  .. code-block:: diff
+
+      -{% with engines.count as total %}
+      +{% with total=engines.count %}
+
+  `Issue #82 <https://github.com/adamchainz/djade/issues/82>`__.
+
 1.2.0 (2024-10-04)
 ------------------
 

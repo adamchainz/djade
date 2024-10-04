@@ -376,3 +376,20 @@ Djade updates ``{% load %}`` tags appropriately:
 
     -{% load admin_static %}
     +{% load static %}
+
+Django 1.3+: legacy variable assignment syntax
+----------------------------------------------
+
+The minimum target Django version is 2.1, so this fixer is always active.
+
+Django 1.3 added support for ``=`` to assign variables in ``{% with %}`` and ``{% blocktranslate %}`` tags.
+Prior to this, they only supported the legacy syntax using the ``as`` keyword, which Django still supports.
+
+Djade rewrites the older ``as`` syntax to the newer ``=`` one:
+
+.. code-block:: diff
+
+    -{% with engines.count as total %}
+    +{% with total=engines.count %}
+         ...
+     {% endwith %}
