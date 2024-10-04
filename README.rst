@@ -94,16 +94,16 @@ Pass a list of template files to format them:
 
 .. code-block:: console
 
-    $ djade --target-version 5.1 templates/**/*.html
-    3 files reformatted, 330 files already formatted
+    $ djade --target-version 5.1 templates/engine.html
+    1 file reformatted
 
 Djade can also upgrade some old template syntax.
 Add the ``--target-version`` option with your Django version as ``<major>.<minor>`` to enable applicable fixers:
 
 .. code-block:: console
 
-    $ djade --target-version 5.1 templates/**/*.html
-    1 file reformatted, 332 files already formatted
+    $ djade --target-version 5.1 templates/engine.html
+    1 file reformatted
 
 Djade does not have any ability to recurse through directories.
 Use the pre-commit integration, globbing, or another technique to apply it to many files.
