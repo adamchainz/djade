@@ -7,7 +7,7 @@ Changelog
 
 * Add ``--check`` option to report if changes would be made.
 
- Thanks to Coen van der Kamp for the request in `Issue #79 <https://github.com/adamchainz/djade/issues/79>`__.
+  Thanks to Coen van der Kamp for the request in `Issue #79 <https://github.com/adamchainz/djade/issues/79>`__.
 
 * Improve output.
   Individual file names are no longer reported, except with ``--check``.
