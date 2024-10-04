@@ -29,6 +29,8 @@ fn main_impl(args: &cli::Args, writer: &mut dyn std::io::Write) -> i32 {
     };
 
     let mut returncode = 0;
+    let mut reformatted_count = 0;
+    let mut already_formatted_count = 0;
     for filename in &args.filenames {
         match fs::read_to_string(filename) {
             Ok(content) => {
@@ -37,15 +39,18 @@ fn main_impl(args: &cli::Args, writer: &mut dyn std::io::Write) -> i32 {
                     if args.check {
                         writeln!(writer, "Would reformat: {}", filename).unwrap();
                         returncode = 1;
+                        reformatted_count += 1;
                     } else {
-                        writeln!(writer, "Reformatting: {}", filename).unwrap();
                         fs::write(filename, formatted).expect("Could not write {filename}");
                         returncode = 1;
+                        reformatted_count += 1;
                     }
+                } else {
+                    already_formatted_count += 1;
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
-                writeln!(writer, "{} is non-utf-8 (not supported)", filename).unwrap();
+                writeln!(writer, "{} is non-UTF-8 (not supported)", filename).unwrap();
                 returncode = 1;
             }
             Err(e) => {
@@ -54,6 +59,35 @@ fn main_impl(args: &cli::Args, writer: &mut dyn std::io::Write) -> i32 {
             }
         }
     }
+
+    let mut message = String::new();
+    if reformatted_count > 0 {
+        message.push_str(&reformatted_count.to_string());
+        message.push_str(" file");
+        if reformatted_count > 1 {
+            message.push('s');
+        }
+        if args.check {
+            message.push_str(" would be reformatted");
+        } else {
+            message.push_str(" reformatted");
+        }
+        if already_formatted_count > 0 {
+            message.push_str(", ");
+        }
+    }
+    if already_formatted_count > 0 {
+        message.push_str(&already_formatted_count.to_string());
+        message.push_str(" file");
+        if already_formatted_count > 1 {
+            message.push('s');
+        }
+        message.push_str(" already formatted");
+    }
+    if !message.is_empty() {
+        writeln!(writer, "{}", message).unwrap();
+    }
+
     returncode
 }
 
@@ -812,7 +846,7 @@ mod tests {
     // main
 
     #[test]
-    fn test_main_no_formatting() {
+    fn test_main_impl_one_already_formatted() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("tank-engine.html");
         fs::write(&file_path, "{{ name }}\n").unwrap();
@@ -832,11 +866,11 @@ mod tests {
 
         assert_eq!(returncode, 0);
         let output = String::from_utf8(buffer).unwrap();
-        assert_eq!(output, "");
+        assert_eq!(output, "1 file already formatted\n");
     }
 
     #[test]
-    fn test_main_reformatted() {
+    fn test_main_impl_one_reformatted() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("tank-engine.html");
         fs::write(&file_path, "{{name}}").unwrap();
@@ -856,8 +890,7 @@ mod tests {
 
         assert_eq!(returncode, 1);
         let output = String::from_utf8(buffer).unwrap();
-        assert!(output.starts_with("Reformatting: "));
-        assert!(output.ends_with("tank-engine.html\n"));
+        assert_eq!(output, "1 file reformatted\n");
 
         // Verify the file was changed
         let content = fs::read_to_string(&file_path).unwrap();
@@ -865,7 +898,7 @@ mod tests {
     }
 
     #[test]
-    fn test_main_non_utf8_file() {
+    fn test_main_impl_one_non_utf_8_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("non_utf8.txt");
 
@@ -889,11 +922,13 @@ mod tests {
         assert_eq!(returncode, 1);
 
         let output = String::from_utf8(buffer).unwrap();
-        assert!(output.contains("is non-utf-8 (not supported)"));
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].ends_with("non_utf8.txt is non-UTF-8 (not supported)"));
     }
 
     #[test]
-    fn test_main_check_option() {
+    fn test_main_impl_check_option() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("tank-engine.html");
         fs::write(&file_path, "{{name}}").unwrap();
@@ -911,8 +946,12 @@ mod tests {
 
         assert_eq!(returncode, 1);
         let output = String::from_utf8(buffer).unwrap();
-        assert!(output.starts_with("Would reformat: "));
-        assert!(output.ends_with("tank-engine.html\n"));
+        // split into lines
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("Would reformat: "));
+        assert!(lines[0].ends_with("tank-engine.html"));
+        assert_eq!(lines[1], "1 file would be reformatted");
 
         // Verify the file wasn't actually changed
         let content = fs::read_to_string(&file_path).unwrap();

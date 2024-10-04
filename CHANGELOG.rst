@@ -6,6 +6,10 @@ Changelog
 
  Thanks to Coen van der Kamp for the request in `Issue #79 <https://github.com/adamchainz/djade/issues/79>`__.
 
+* Improve output.
+  Individual file names are no longer reported, except with ``--check``.
+  A final summary message lists the number of reformatted and already-formatted files.
+
 1.1.1 (2024-09-29)
 ------------------
 
