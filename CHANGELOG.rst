@@ -8,6 +8,10 @@ Changelog
 
   `Issue #82 <https://github.com/adamchainz/djade/issues/82>`__.
 
+* Avoid stripping trailing whitespace inside ``{% block %}`` tags when trying to unindent top-level ``{% endblock %}`` tags.
+
+  Thanks to Gav O'Connor for the report in `Issue #88 <https://github.com/adamchainz/djade/issues/88>`__.
+
 1.2.0 (2024-10-04)
 ------------------
 

@@ -880,10 +880,12 @@ fn update_top_level_block_indentation(tokens: &mut Vec<Token>) {
     }
 }
 
+static INDENTATION_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[ \t]+$\z").unwrap());
+
 fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
     if index > 0 {
         if let Token::Text { contents, .. } = &mut tokens[index - 1] {
-            *contents = contents.trim_end_matches(&[' ', '\t']).to_string();
+            *contents = (&INDENTATION_LINE).replace_all(contents, "").to_string();
         }
     }
 }
@@ -1779,6 +1781,30 @@ mod tests {
         assert_eq!(
             formatted,
             "{% extends 'egg.html' %}\n\n{% block yolk %}\n    yellow\n{% endblock yolk %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_top_level_blocks_trailing_spaces_unchanged() {
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n{% block classes %}{{ block.super }} yellow {% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block classes %}{{ block.super }} yellow {% endblock %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_top_level_blocks_trailing_tabs_unchanged() {
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n{% block classes %}{{ block.super }}\tyellow\t{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block classes %}{{ block.super }}\tyellow\t{% endblock %}\n"
         );
     }
 
