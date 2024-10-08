@@ -2,6 +2,8 @@
 Changelog
 =========
 
+* Drop Python 3.8 support.
+
 * Migrate ``{% with %}`` and ``{% blocktranslate %}`` tags from the legacy ``as`` syntax to new ``=`` syntax.
 
   `Issue #82 <https://github.com/adamchainz/djade/issues/82>`__.
