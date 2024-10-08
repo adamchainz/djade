@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.3.0 (2024-10-08)
+------------------
+
 * Drop Python 3.8 support.
 
 * Migrate ``{% with %}`` and ``{% blocktranslate %}`` tags from the legacy ``as`` syntax to new ``=`` syntax.
