@@ -273,7 +273,10 @@ fn lex_filter_expression(expr: &str) -> FilterExpression {
         let start = captures.get(0).unwrap().start();
         if upto != start {
             // Syntax error - ignore it and return whole expression as constant
-            return filter_expression;
+            return FilterExpression {
+                var: Expression::Unparsed(expr.to_string()),
+                filters: Vec::new(),
+            };
         }
 
         if !variable {
@@ -2016,6 +2019,12 @@ mod tests {
     fn test_format_variables_syntax_error_end() {
         let formatted = format("{{ egg | crack? }}\n", None);
         assert_eq!(formatted, "{{ egg | crack? }}\n");
+    }
+
+    #[test]
+    fn test_format_variables_syntax_error_middle() {
+        let formatted = format("{{ engines[0].name | length }}\n", None);
+        assert_eq!(formatted, "{{ engines[0].name | length }}\n");
     }
 
     #[test]

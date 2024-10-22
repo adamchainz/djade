@@ -2,6 +2,11 @@
 Changelog
 =========
 
+* Fix the removal of content from syntactically incorrect variables with filters, for example ``{{ engines[0].name|length }}``.
+  (Django does not support the ``[0]`` syntax.)
+
+  Thanks to @roxanebellot for the report in `Issue #92 <https://github.com/adamchainz/djade/issues/92>`__.
+
 1.3.0 (2024-10-08)
 ------------------
 
