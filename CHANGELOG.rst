@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.3.1 (2024-10-22)
+------------------
+
 * Fix the removal of content from syntactically incorrect variables with filters, for example ``{{ engines[0].name|length }}``.
   (Django does not support the ``[0]`` syntax.)
 
