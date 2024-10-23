@@ -2028,6 +2028,14 @@ mod tests {
     }
 
     #[test]
+    fn test_format_variables_double_dot() {
+        // Double dot syntax for "empty string lookup" deprecated:
+        // https://code.djangoproject.com/ticket/35738
+        let formatted = format("{{ engine..name }}\n", None);
+        assert_eq!(formatted, "{{ engine..name }}\n");
+    }
+
+    #[test]
     fn test_format_block_bits() {
         let formatted = format("{%  if breakfast  ==  'egg'  %}\n", None);
         assert_eq!(formatted, "{% if breakfast == 'egg' %}\n");
