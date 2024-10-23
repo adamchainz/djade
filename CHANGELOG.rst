@@ -6,6 +6,12 @@ Changelog
 
   `Issue #76 <https://github.com/adamchainz/djade/issues/76>`__.
 
+* Make pre-commit hook exclude Python files by default.
+
+  Thanks to Ronny Vedrilla for the report in `Issue #64 <https://github.com/adamchainz/djade/issues/64>`__.
+
+  (`Commit b48fc45 in djade-pre-commit <https://github.com/adamchainz/djade-pre-commit/commit/b48fc450f2ef0c3d71f516ba0a8982963bcc992a>`__.)
+
 1.3.1 (2024-10-22)
 ------------------
 
