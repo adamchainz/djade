@@ -863,7 +863,7 @@ fn update_top_level_block_indentation(tokens: &mut Vec<Token>) {
     for i in 0..tokens.len() {
         match &tokens[i] {
             Token::Block { bits, .. } => {
-                if bits.len() >= 1 && bits[0] == "extends" {
+                if bits[0] == "extends" {
                     after_extends = true;
                     unindent_token(tokens, i);
                 } else if bits[0] == "block" {
@@ -875,6 +875,10 @@ fn update_top_level_block_indentation(tokens: &mut Vec<Token>) {
                     block_depth -= 1;
                     if after_extends && block_depth == 0 {
                         unindent_token(tokens, i);
+                    }
+                } else {
+                    if block_depth == 0 {
+                        return;
                     }
                 }
             }
@@ -1845,6 +1849,18 @@ mod tests {
     fn test_unindent_multiple_blocks() {
         let formatted = format("{% extends 'egg.html' %}\n\n  {% block yolk %}\n  yellow\n  {% endblock yolk %}\n\n  {% block white %}\n    protein\n  {% endblock white %}\n", None);
         assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}\n  yellow\n{% endblock yolk %}\n\n{% block white %}\n    protein\n{% endblock white %}\n");
+    }
+
+    #[test]
+    fn test_no_unindenting_inside_if() {
+        let formatted = format("{% extends 'engine.html' %}\n{% if steam %}\n  {% block whistle %}\n  peep\n  {% endblock whistle %}\n{% endif %}\n", None);
+        assert_eq!(formatted, "{% extends 'engine.html' %}\n{% if steam %}\n  {% block whistle %}\n  peep\n  {% endblock whistle %}\n{% endif %}\n");
+    }
+
+    #[test]
+    fn test_unindent_with_if_inside() {
+        let formatted = format("{% extends 'engine.html' %}\n\n  {% block whistle %}\n  {% if steam %}\n  peep\n  {% endif %}\n  {% endblock whistle %}\n", None);
+        assert_eq!(formatted, "{% extends 'engine.html' %}\n\n{% block whistle %}\n  {% if steam %}\n  peep\n  {% endif %}\n{% endblock whistle %}\n");
     }
 
     // update_top_level_block_spacing
