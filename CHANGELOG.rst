@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.3.2 (2024-10-23)
+------------------
+
 * Make top-level block unindenting more conservative, avoiding any action after seeing other tags outside of blocks.
 
   `Issue #76 <https://github.com/adamchainz/djade/issues/76>`__.
