@@ -1,0 +1,5 @@
+# Dummy directory to fix:
+# https://github.com/PyO3/maturin/issues/2363
+# Djade has no Python module (for now)
+*
+!.gitignore
