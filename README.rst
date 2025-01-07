@@ -114,7 +114,7 @@ For example, |with git ls-files pipe xargs|_:
 
 .. code-block:: sh
 
-    git ls-files -z -- '*.html' | xargs -0 djade
+    git ls-files -z -- '*.html' | xargs -0r djade
 
 …or PowerShell’s |ForEach-Object|__:
 
