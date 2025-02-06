@@ -14,7 +14,7 @@ pub struct Args {
     #[arg(
         long,
         default_value = None,
-        value_parser = ["2.1", "2.2", "3.0", "3.1", "3.2", "4.1", "4.2", "5.0", "5.1"],
+        value_parser = ["2.1", "2.2", "3.0", "3.1", "3.2", "4.1", "4.2", "5.0", "5.1", "5.2"],
         help = "The version of Django to target.",
     )]
     pub target_version: Option<String>,

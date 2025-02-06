@@ -2,6 +2,8 @@
 Changelog
 =========
 
+* Support Django 5.2 in ``--target-version``.
+
 1.3.2 (2024-10-23)
 ------------------
 
