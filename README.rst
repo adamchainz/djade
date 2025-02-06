@@ -58,7 +58,7 @@ You can also install Djade as a `pre-commit <https://pre-commit.com/>`__ hook.
         rev: ""  # Replace with the latest tag on GitHub
         hooks:
         -   id: djade
-            args: [--target-version, "5.1"]  # Replace with Django version
+            args: [--target-version, "5.2"]  # Replace with Django version
 
 The separate repository enables installation without compiling the Rust code.
 
@@ -94,7 +94,7 @@ Pass a list of template files to format them:
 
 .. code-block:: console
 
-    $ djade --target-version 5.1 templates/engine.html
+    $ djade --target-version 5.2 templates/engine.html
     1 file reformatted
 
 Djade can also upgrade some old template syntax.
@@ -102,7 +102,7 @@ Add the ``--target-version`` option with your Django version as ``<major>.<minor
 
 .. code-block:: console
 
-    $ djade --target-version 5.1 templates/engine.html
+    $ djade --target-version 5.2 templates/engine.html
     1 file reformatted
 
 Djade does not have any ability to recurse through directories.
