@@ -121,7 +121,7 @@ checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
 name = "djade"
-version = "1.3.2"
+version = "1.4.0"
 dependencies = [
  "clap",
  "regex",
