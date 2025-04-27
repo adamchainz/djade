@@ -223,19 +223,18 @@ static FILTER_RE: LazyLock<Regex> = LazyLock::new(|| {
     regex::RegexBuilder::new(&format!(
         r#"(?x)
         ^(?P<constant>{constant})|
-        ^(?P<var>[{var_chars}]+|{num})|
+        ^(?P<var>[{var_chars}]+)|
          (?:\s*{filter_sep}\s*
              (?P<filter_name>\w+)
                  (?:{arg_sep}
                      (?:
                       (?P<constant_arg>{constant})|
-                      (?P<var_arg>[{var_chars}]+|{num})
+                      (?P<var_arg>[{var_chars}]+)
                      )
                  )?
          )"#,
         constant = constant_string,
-        num = r"[-+.]?\d[\d.e]*",
-        var_chars = r"\w\.",
+        var_chars = r"\w\.\+-",
         filter_sep = regex::escape("|"),
         arg_sep = regex::escape(":"),
     ))
