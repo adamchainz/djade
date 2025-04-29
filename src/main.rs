@@ -127,7 +127,7 @@ fn lex(template_string: &str) -> Vec<Token> {
     let mut lineno = 1;
     let mut last_end = 0;
 
-    for cap in (&*TAG_RE).captures_iter(template_string) {
+    for cap in TAG_RE.captures_iter(template_string) {
         let token_match = cap.get(0).unwrap();
         let (start, end) = (token_match.start(), token_match.end());
 
@@ -268,7 +268,7 @@ fn lex_filter_expression(expr: &str) -> FilterExpression {
     };
     let mut upto = 0;
     let mut variable = false;
-    for captures in (&*FILTER_RE).captures_iter(expr) {
+    for captures in FILTER_RE.captures_iter(expr) {
         let start = captures.get(0).unwrap().start();
         if upto != start {
             // Syntax error - ignore it and return whole expression as constant
@@ -452,7 +452,7 @@ fn format_variable(filter_expression: FilterExpression, result: &mut String) {
 static LENGTH_IS_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"([\w.]+)\|length_is:(\w+)").unwrap());
 
-fn migrate_length_is(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+fn migrate_length_is(tokens: &mut [Token], target_version: Option<(u8, u8)>) {
     if target_version.is_none() || target_version.unwrap() < (4, 2) {
         return;
     }
@@ -473,7 +473,7 @@ fn migrate_length_is(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) 
     }
 }
 
-fn migrate_empty_json_script(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+fn migrate_empty_json_script(tokens: &mut [Token], target_version: Option<(u8, u8)>) {
     if target_version.is_none() || target_version.unwrap() < (4, 1) {
         return;
     }
@@ -496,7 +496,7 @@ fn migrate_empty_json_script(tokens: &mut Vec<Token>, target_version: Option<(u8
     }
 }
 
-fn migrate_translation_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+fn migrate_translation_tags(tokens: &mut [Token], target_version: Option<(u8, u8)>) {
     if target_version.is_none() || target_version.unwrap() < (3, 1) {
         return;
     }
@@ -533,7 +533,7 @@ fn migrate_translation_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
     }
 }
 
-fn migrate_ifequal_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+fn migrate_ifequal_tags(tokens: &mut [Token], target_version: Option<(u8, u8)>) {
     if target_version.is_none() || target_version.unwrap() < (3, 1) {
         return;
     }
@@ -598,7 +598,7 @@ fn migrate_ifequal_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)
     }
 }
 
-fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8, u8)>) {
+fn migrate_static_load_tags(tokens: &mut [Token], target_version: Option<(u8, u8)>) {
     if target_version.is_none() || target_version.unwrap() < (2, 1) {
         return;
     }
@@ -615,9 +615,9 @@ fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
                         }
                     }
                 } else {
-                    for i in 1..bits.len() {
-                        if bits[i] == "admin_static" || bits[i] == "staticfiles" {
-                            bits[i] = "static".to_string();
+                    for bit in bits.iter_mut().skip(1) {
+                        if bit == "admin_static" || bit == "staticfiles" {
+                            *bit = "static".to_string();
                         }
                     }
                 }
@@ -626,7 +626,7 @@ fn migrate_static_load_tags(tokens: &mut Vec<Token>, target_version: Option<(u8,
     }
 }
 
-fn migrate_assignments(tokens: &mut Vec<Token>) {
+fn migrate_assignments(tokens: &mut [Token]) {
     for token in tokens.iter_mut() {
         if let Token::Block { bits, .. } = token {
             match bits[0].as_str() {
@@ -723,10 +723,8 @@ fn migrate_assignments_blocktranslate_tag(bits: &mut Vec<String>) {
 static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
 
 fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>, newline: &str) {
-    if let Some(mut token) = tokens.first_mut() {
-        if let Token::Text { contents, .. } = &mut token {
-            *contents = (&*LEADING_BLANK_LINES).replace(contents, "").to_string();
-        }
+    if let Some(Token::Text { contents, .. }) = tokens.first_mut() {
+        *contents = LEADING_BLANK_LINES.replace(contents, "").to_string();
     }
 
     if let Some(mut token) = tokens.last_mut() {
@@ -815,7 +813,7 @@ fn update_load_tags(tokens: &mut Vec<Token>) {
     }
 }
 
-fn update_endblock_labels(tokens: &mut Vec<Token>) {
+fn update_endblock_labels(tokens: &mut [Token]) {
     let mut block_stack = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
@@ -855,7 +853,7 @@ fn update_endblock_labels(tokens: &mut Vec<Token>) {
     }
 }
 
-fn update_top_level_block_indentation(tokens: &mut Vec<Token>) {
+fn update_top_level_block_indentation(tokens: &mut [Token]) {
     let mut after_extends = false;
     let mut block_depth = 0;
 
@@ -875,10 +873,8 @@ fn update_top_level_block_indentation(tokens: &mut Vec<Token>) {
                     if after_extends && block_depth == 0 {
                         unindent_token(tokens, i);
                     }
-                } else {
-                    if block_depth == 0 {
-                        return;
-                    }
+                } else if block_depth == 0 {
+                    return;
                 }
             }
             _ => continue,
@@ -888,15 +884,15 @@ fn update_top_level_block_indentation(tokens: &mut Vec<Token>) {
 
 static INDENTATION_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[ \t]+$\z").unwrap());
 
-fn unindent_token(tokens: &mut Vec<Token>, index: usize) {
+fn unindent_token(tokens: &mut [Token], index: usize) {
     if index > 0 {
         if let Token::Text { contents, .. } = &mut tokens[index - 1] {
-            *contents = (&INDENTATION_LINE).replace_all(contents, "").to_string();
+            *contents = INDENTATION_LINE.replace_all(contents, "").to_string();
         }
     }
 }
 
-fn update_top_level_block_spacing(tokens: &mut Vec<Token>, newline: &str) {
+fn update_top_level_block_spacing(tokens: &mut [Token], newline: &str) {
     let mut has_extends = false;
     let mut depth = 0;
     let mut last_top_level_tag = None;
