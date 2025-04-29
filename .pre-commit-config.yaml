@@ -1,6 +1,7 @@
 ci:
   autoupdate_schedule: monthly
   skip:
+  - cargo-clippy
   - cargo-fmt
 
 default_language_version:
