@@ -10,6 +10,8 @@ readme = "README.rst"
 keywords = [
   "Django",
 ]
+license = "MIT"
+license-files = [ "LICENSE" ]
 authors = [
   { name = "Adam Johnson", email = "me@adamj.eu" },
 ]
@@ -18,7 +20,6 @@ classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Framework :: Django",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Natural Language :: English",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
