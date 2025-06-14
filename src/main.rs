@@ -1448,14 +1448,26 @@ mod tests {
 
     #[test]
     fn test_migrate_assignments_with_multiple_legacy() {
-        let formatted = format("{% with engines.count as total and cars.count as vehicles %}{{ total }} {{ vehicles }}{% endwith %}\n", None);
-        assert_eq!(formatted, "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n");
+        let formatted = format(
+            "{% with engines.count as total and cars.count as vehicles %}{{ total }} {{ vehicles }}{% endwith %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_with_mixed() {
-        let formatted = format("{% with engines.count as total and vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n", None);
-        assert_eq!(formatted, "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n");
+        let formatted = format(
+            "{% with engines.count as total and vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% with total=engines.count vehicles=cars.count %}{{ total }} {{ vehicles }}{% endwith %}\n"
+        );
     }
 
     #[test]
@@ -1472,8 +1484,14 @@ mod tests {
 
     #[test]
     fn test_migrate_assignments_with_nested() {
-        let formatted = format("{% with outer=1 %}{% with 2 as inner %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n", None);
-        assert_eq!(formatted, "{% with outer=1 %}{% with inner=2 %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n");
+        let formatted = format(
+            "{% with outer=1 %}{% with 2 as inner %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% with outer=1 %}{% with inner=2 %}{{ outer }} {{ inner }}{% endwith %}{% endwith %}\n"
+        );
     }
 
     #[test]
@@ -1514,7 +1532,10 @@ mod tests {
 
     #[test]
     fn test_migrate_assignments_blocktranslate_legacy_with() {
-        let formatted = format("{% blocktranslate with engine.name as name %}Hello {{ name }}{% endblocktranslate %}\n", None);
+        let formatted = format(
+            "{% blocktranslate with engine.name as name %}Hello {{ name }}{% endblocktranslate %}\n",
+            None,
+        );
         assert_eq!(
             formatted,
             "{% blocktranslate with name=engine.name %}Hello {{ name }}{% endblocktranslate %}\n"
@@ -1535,50 +1556,98 @@ mod tests {
 
     #[test]
     fn test_migrate_assignments_blocktranslate_legacy_count() {
-        let formatted = format("{% blocktranslate count engines.count as total %}{{ total }} user{% plural %}{{ total }} users{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate count total=engines.count %}{{ total }} user{% plural %}{{ total }} users{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate count engines.count as total %}{{ total }} user{% plural %}{{ total }} users{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate count total=engines.count %}{{ total }} user{% plural %}{{ total }} users{% endblocktranslate %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_blocktranslate_modern_count() {
-        let formatted = format("{% blocktranslate count total=engines.count %}{{ total }} engine{% plural %}{{ total }} engines{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate count total=engines.count %}{{ total }} engine{% plural %}{{ total }} engines{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate count total=engines.count %}{{ total }} engine{% plural %}{{ total }} engines{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate count total=engines.count %}{{ total }} engine{% plural %}{{ total }} engines{% endblocktranslate %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_blocktranslate_legacy_with_and_count() {
-        let formatted = format("{% blocktranslate with engine.name as name count engines.count as total %}Hello {{ name }}, there is {{ total }} engine{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engine{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate with engine.name as name count engines.count as total %}Hello {{ name }}, there is {{ total }} engine{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engine{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_blocktranslate_modern_with_and_count() {
-        let formatted = format("{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engines{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engines{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engines{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name=engine.name count total=engines.count %}Hello {{ name }}, there is {{ total }} engines{% plural %}Hello {{ name }}, there are {{ total }} engines{% endblocktranslate %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_blocktranslate_multiple_with_legacy() {
-        let formatted = format("{% blocktranslate with engine.name as name and engine.number as number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate with name=engine.name number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate with engine.name as name and engine.number as number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name=engine.name number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_blocktranslate_multiple_with_mixed() {
-        let formatted = format("{% blocktranslate with engine.name as name and number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate with name=engine.name number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate with engine.name as name and number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name=engine.name number=engine.number %}Hello {{ name }} #{{ number }}{% endblocktranslate %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_blocktranslate_with_filters() {
-        let formatted = format("{% blocktranslate with engine.name|upper as shouty %}HELLO {{ shouty }}{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate with shouty=engine.name|upper %}HELLO {{ shouty }}{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate with engine.name|upper as shouty %}HELLO {{ shouty }}{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with shouty=engine.name|upper %}HELLO {{ shouty }}{% endblocktranslate %}\n"
+        );
     }
 
     #[test]
     fn test_migrate_assignments_blocktranslate_context() {
-        let formatted = format("{% blocktranslate with name=engine.name context 'greeting' %}Hello {{ name }}{% endblocktranslate %}\n", None);
-        assert_eq!(formatted, "{% blocktranslate with name=engine.name context 'greeting' %}Hello {{ name }}{% endblocktranslate %}\n");
+        let formatted = format(
+            "{% blocktranslate with name=engine.name context 'greeting' %}Hello {{ name }}{% endblocktranslate %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% blocktranslate with name=engine.name context 'greeting' %}Hello {{ name }}{% endblocktranslate %}\n"
+        );
     }
 
     // Formatters
@@ -1824,8 +1893,14 @@ mod tests {
 
     #[test]
     fn test_format_second_level_blocks_indented() {
-        let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block yolk %}\n  {% block white %}\n    protein\n  {% endblock white %}\n{% endblock yolk %}\n"
+        );
     }
 
     #[test]
@@ -1842,58 +1917,112 @@ mod tests {
 
     #[test]
     fn test_unindent_multiple_blocks() {
-        let formatted = format("{% extends 'egg.html' %}\n\n  {% block yolk %}\n  yellow\n  {% endblock yolk %}\n\n  {% block white %}\n    protein\n  {% endblock white %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}\n  yellow\n{% endblock yolk %}\n\n{% block white %}\n    protein\n{% endblock white %}\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n  {% block yolk %}\n  yellow\n  {% endblock yolk %}\n\n  {% block white %}\n    protein\n  {% endblock white %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block yolk %}\n  yellow\n{% endblock yolk %}\n\n{% block white %}\n    protein\n{% endblock white %}\n"
+        );
     }
 
     #[test]
     fn test_no_unindenting_inside_if() {
-        let formatted = format("{% extends 'engine.html' %}\n{% if steam %}\n  {% block whistle %}\n  peep\n  {% endblock whistle %}\n{% endif %}\n", None);
-        assert_eq!(formatted, "{% extends 'engine.html' %}\n{% if steam %}\n  {% block whistle %}\n  peep\n  {% endblock whistle %}\n{% endif %}\n");
+        let formatted = format(
+            "{% extends 'engine.html' %}\n{% if steam %}\n  {% block whistle %}\n  peep\n  {% endblock whistle %}\n{% endif %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'engine.html' %}\n{% if steam %}\n  {% block whistle %}\n  peep\n  {% endblock whistle %}\n{% endif %}\n"
+        );
     }
 
     #[test]
     fn test_unindent_with_if_inside() {
-        let formatted = format("{% extends 'engine.html' %}\n\n  {% block whistle %}\n  {% if steam %}\n  peep\n  {% endif %}\n  {% endblock whistle %}\n", None);
-        assert_eq!(formatted, "{% extends 'engine.html' %}\n\n{% block whistle %}\n  {% if steam %}\n  peep\n  {% endif %}\n{% endblock whistle %}\n");
+        let formatted = format(
+            "{% extends 'engine.html' %}\n\n  {% block whistle %}\n  {% if steam %}\n  peep\n  {% endif %}\n  {% endblock whistle %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'engine.html' %}\n\n{% block whistle %}\n  {% if steam %}\n  peep\n  {% endif %}\n{% endblock whistle %}\n"
+        );
     }
 
     // update_top_level_block_spacing
 
     #[test]
     fn test_update_top_level_block_spacing_no_change() {
-        let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n"
+        );
     }
 
     #[test]
     fn test_update_top_level_block_spacing_add_line() {
-        let formatted = format("{% extends 'egg.html' %}\n{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\n{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n"
+        );
     }
 
     #[test]
     fn test_update_top_level_block_spacing_add_line_with_crlf_first() {
-        let formatted = format("{% extends 'egg.html' %}\r\n{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\r\n\r\n{% block white %}Albumin{% endblock %}\r\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\r\n{% block yolk %}Sunny side up{% endblock %}\n{% block white %}Albumin{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\r\n\r\n{% block white %}Albumin{% endblock %}\r\n"
+        );
     }
 
     #[test]
     fn test_update_top_level_block_spacing_remove_extra_lines() {
-        let formatted = format("{% extends 'egg.html' %}\n\n\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block yolk %}Sunny side up{% endblock %}\n\n{% block white %}Albumin{% endblock %}\n"
+        );
     }
 
     #[test]
     fn test_update_top_level_block_spacing_remove_extra_line_with_crlf_first() {
-        let formatted = format("{% extends 'egg.html' %}\r\n\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\r\n\r\n{% block white %}Albumin{% endblock %}\r\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\r\n\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\n\n\n{% block white %}Albumin{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\r\n\r\n{% block yolk %}Sunny side up{% endblock %}\r\n\r\n{% block white %}Albumin{% endblock %}\r\n"
+        );
     }
 
     #[test]
     fn test_update_top_level_block_spacing_nested_blocks() {
-        let formatted = format("{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n", None);
-        assert_eq!(formatted, "{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n");
+        let formatted = format(
+            "{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block yolk %}{% block inner_yolk %}Runny{% endblock %}{% endblock %}\n\n{% block white %}Firm{% endblock %}\n"
+        );
     }
 
     #[test]
@@ -1911,13 +2040,13 @@ mod tests {
     #[test]
     fn test_update_top_level_block_spacing_content() {
         let formatted = format(
-                "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n",
-                None,
-            );
+            "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n",
+            None,
+        );
         assert_eq!(
-                formatted,
-                "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n"
-            );
+            formatted,
+            "{% extends 'egg.html' %}\n\n(not rendered)\n\n{% block yolk %}Sunny side up{% endblock %}\n"
+        );
     }
 
     #[test]
