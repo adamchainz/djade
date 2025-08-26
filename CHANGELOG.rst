@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Unreleased
-----------
+1.5.0 (2025-08-26)
+------------------
 
 * Parse target Django version from ``pyproject.toml``.
   Now, if you don’t specify a version with ``--target-version``, Djade will try to parse your minimum-supported target Django version from ``project.dependencies`` in ``pyproject.toml``.
