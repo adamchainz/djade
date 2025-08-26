@@ -1,6 +1,7 @@
 mod cli;
 
 use clap::Parser;
+use cli::get_target_version;
 use regex::Regex;
 use std::fs;
 use std::sync::LazyLock;
@@ -12,21 +13,8 @@ fn main() {
 }
 
 fn main_impl(args: &cli::Args, writer: &mut dyn std::io::Write) -> i32 {
-    let target_version: Option<(u8, u8)> = {
-        if args.target_version.is_none() {
-            None
-        } else {
-            let version = args.target_version.as_ref().unwrap();
-            let parts: Vec<&str> = version.split('.').collect();
-            if parts.len() != 2 {
-                panic!("Invalid target version format. Expected 'major.minor'");
-            }
-            Some((
-                parts[0].parse().expect("Invalid major version number"),
-                parts[1].parse().expect("Invalid minor version number"),
-            ))
-        }
-    };
+    let target_version: Option<(u8, u8)> =
+        get_target_version(&args.target_version).map(|v| v.as_tuple());
 
     let mut returncode = 0;
     let mut reformatted_count = 0;
@@ -955,7 +943,7 @@ mod tests {
         // Run the main function with our non-UTF-8 file
         let args = cli::Args {
             filenames: vec![file_path.to_str().unwrap().to_string()],
-            target_version: None,
+            target_version: "auto".to_string(),
             check: false,
         };
 
@@ -979,7 +967,7 @@ mod tests {
         // Run the main function with our non-UTF-8 file
         let args = cli::Args {
             filenames: vec![file_path.to_str().unwrap().to_string()],
-            target_version: None,
+            target_version: "auto".to_string(),
             check: false,
         };
 
@@ -1010,7 +998,7 @@ mod tests {
         // Run the main function with our non-UTF-8 file
         let args = cli::Args {
             filenames: vec![file_path.to_str().unwrap().to_string()],
-            target_version: None,
+            target_version: "auto".to_string(),
             check: false,
         };
 
@@ -1035,7 +1023,7 @@ mod tests {
 
         let args = cli::Args {
             filenames: vec![file_path.to_str().unwrap().to_string()],
-            target_version: None,
+            target_version: "auto".to_string(),
             check: true,
         };
 
@@ -1053,6 +1041,99 @@ mod tests {
         // Verify the file wasn't actually changed
         let content = fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, "{{name}}");
+    }
+
+    #[test]
+    fn test_main_impl_auto_version_with_pyproject() {
+        let dir = tempdir().unwrap();
+        let old_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+
+        let pyproject_content = r#"
+[project]
+dependencies = [
+    "django>=4.2,<5.0",
+    "requests>=2.0",
+]
+"#;
+        fs::write("pyproject.toml", pyproject_content).unwrap();
+
+        // Create a test template file
+        let template_content = "{% block content %}\nHello\n{% endblock %}";
+        let template_path = dir.path().join("test.html");
+        fs::write(&template_path, template_content).unwrap();
+
+        let args = cli::Args {
+            filenames: vec![template_path.to_str().unwrap().to_string()],
+            target_version: "auto".to_string(),
+            check: false,
+        };
+
+        let mut output = Vec::new();
+        let exit_code = main_impl(&args, &mut output);
+
+        assert_eq!(exit_code, 1);
+        let output_str = String::from_utf8(output).unwrap();
+        assert!(output_str.contains("1 file reformatted"));
+
+        let reformatted_content = fs::read_to_string(&template_path).unwrap();
+        assert!(reformatted_content.contains("{% endblock content %}"));
+
+        std::env::set_current_dir(old_dir).unwrap();
+    }
+
+    #[test]
+    fn test_main_impl_auto_version_without_pyproject() {
+        let dir = tempdir().unwrap();
+        let old_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+
+        let template_content = "{% block content %}\nHello\n{% endblock %}";
+        let template_path = dir.path().join("test.html");
+        fs::write(&template_path, template_content).unwrap();
+
+        let args = cli::Args {
+            filenames: vec![template_path.to_str().unwrap().to_string()],
+            target_version: "auto".to_string(),
+            check: false,
+        };
+
+        let mut output = Vec::new();
+        let exit_code = main_impl(&args, &mut output);
+
+        assert_eq!(exit_code, 1);
+        let output_str = String::from_utf8(output).unwrap();
+        assert!(output_str.contains("1 file reformatted"));
+
+        let reformatted_content = fs::read_to_string(&template_path).unwrap();
+        assert!(reformatted_content.contains("{% endblock content %}"));
+
+        std::env::set_current_dir(old_dir).unwrap();
+    }
+
+    #[test]
+    fn test_main_impl_explicit_version() {
+        let dir = tempdir().unwrap();
+
+        let template_content = "{% block content %}\nHello\n{% endblock %}";
+        let template_path = dir.path().join("test.html");
+        fs::write(&template_path, template_content).unwrap();
+
+        let args = cli::Args {
+            filenames: vec![template_path.to_str().unwrap().to_string()],
+            target_version: "4.2".to_string(),
+            check: false,
+        };
+
+        let mut output = Vec::new();
+        let exit_code = main_impl(&args, &mut output);
+
+        assert_eq!(exit_code, 1);
+        let output_str = String::from_utf8(output).unwrap();
+        assert!(output_str.contains("1 file reformatted"));
+
+        let reformatted_content = fs::read_to_string(&template_path).unwrap();
+        assert!(reformatted_content.contains("{% endblock content %}"));
     }
 
     // detect_newline
