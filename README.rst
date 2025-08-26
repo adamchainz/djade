@@ -125,6 +125,9 @@ __ https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core
 
     git ls-files -- '*.html' | %{djade $_}
 
+The filename ``-`` makes Djade read from standard input and write to standard output.
+In this case, Djade always exits with code 0, even if changes were made.
+
 Options
 =======
 

@@ -11,7 +11,7 @@ use std::sync::LazyLock;
     version
 )]
 pub struct Args {
-    #[arg(required = true)]
+    #[arg(required = true, help = "Filenames to format, or '-' for stdin.")]
     pub filenames: Vec<String>,
 
     #[arg(

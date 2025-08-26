@@ -4,6 +4,7 @@ use clap::Parser;
 use cli::get_target_version;
 use regex::Regex;
 use std::fs;
+use std::io::{self, Read};
 use std::sync::LazyLock;
 
 fn main() {
@@ -20,31 +21,52 @@ fn main_impl(args: &cli::Args, writer: &mut dyn std::io::Write) -> i32 {
     let mut reformatted_count = 0;
     let mut already_formatted_count = 0;
     for filename in &args.filenames {
-        match fs::read_to_string(filename) {
-            Ok(content) => {
-                let formatted = format(&content, target_version);
-                if formatted != content {
-                    if args.check {
-                        writeln!(writer, "Would reformat: {}", filename).unwrap();
-                        returncode = 1;
-                        reformatted_count += 1;
-                    } else {
-                        fs::write(filename, formatted).expect("Could not write {filename}");
-                        returncode = 1;
-                        reformatted_count += 1;
-                    }
-                } else {
-                    already_formatted_count += 1;
+        let (content, is_stdin) = if filename == "-" {
+            let mut buffer = String::new();
+            match io::stdin().read_to_string(&mut buffer) {
+                Ok(_) => (buffer, true),
+                Err(e) => {
+                    writeln!(writer, "Error reading from stdin: {}", e).unwrap();
+                    returncode = 1;
+                    continue;
                 }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
-                writeln!(writer, "{} is non-UTF-8 (not supported)", filename).unwrap();
-                returncode = 1;
+        } else {
+            match fs::read_to_string(filename) {
+                Ok(content) => (content, false),
+                Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+                    writeln!(writer, "{} is non-UTF-8 (not supported)", filename).unwrap();
+                    returncode = 1;
+                    continue;
+                }
+                Err(e) => {
+                    writeln!(writer, "Error reading {}: {}", filename, e).unwrap();
+                    returncode = 1;
+                    continue;
+                }
             }
-            Err(e) => {
-                writeln!(writer, "Error reading {}: {}", filename, e).unwrap();
+        };
+
+        let formatted = format(&content, target_version);
+        if formatted != content {
+            if args.check {
+                let display_name = if is_stdin { "stdin" } else { filename };
+                writeln!(writer, "Would reformat: {}", display_name).unwrap();
                 returncode = 1;
+                reformatted_count += 1;
+            } else if is_stdin {
+                print!("{}", formatted);
+                reformatted_count += 1;
+            } else {
+                fs::write(filename, formatted).expect("Could not write {filename}");
+                returncode = 1;
+                reformatted_count += 1;
             }
+        } else {
+            if is_stdin && !args.check {
+                print!("{}", content);
+            }
+            already_formatted_count += 1;
         }
     }
 
