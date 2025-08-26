@@ -8,6 +8,7 @@ default-run = "djade"
 [dependencies]
 clap = { version = "4.5.17", features = ["derive"] }
 regex = "1.10.6"
+toml = "0.8"
 
 [dev-dependencies]
 tempfile = "3.12.0"
