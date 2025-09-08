@@ -28,6 +28,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 urls.Changelog = "https://github.com/adamchainz/djade/blob/main/CHANGELOG.rst"
 urls.Funding = "https://adamj.eu/books/"
@@ -44,7 +45,7 @@ include = [
 ]
 
 [tool.pyproject-fmt]
-max_supported_python = "3.13"
+max_supported_python = "3.14"
 
 [tool.rstcheck]
 report_level = "ERROR"
