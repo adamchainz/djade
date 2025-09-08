@@ -33,9 +33,7 @@ jobs:
 
     - name: Check built command line
       run: |
-        uv venv --python 3.13
-        uv pip install .
-        uv run djade --help
+        uv run --python 3.14 djade --help
 
   build:
     name: Build os=${{ matrix.os }} target=${{ matrix.target }} ml=${{ matrix.manylinux || 'auto' }}
