@@ -58,9 +58,16 @@ You can also install Djade as a `pre-commit <https://pre-commit.com/>`__ hook.
         rev: ""  # Replace with the latest tag on GitHub
         hooks:
         -   id: djade
-            args: [--target-version, "5.2"]  # Replace with Django version
 
-The separate repository enables installation without compiling the Rust code.
+Djade attempts to parse your current Django version from ``pyproject.toml``.
+If this doesn’t work for you, specify your target version with the ``--target-version`` option:
+
+.. code-block:: diff
+
+    -   id: djade
+    +   args: [--target-version, "5.2"]   # Replace with Django version
+
+The separate repository (``djade-pre-commit``) enables installation without compiling the Rust code.
 
 The default configuration uses pre-commit’s |files option|__ to pick up all text files in directories called ``templates`` (`source <https://github.com/adamchainz/djade-pre-commit/blob/main/.pre-commit-hooks.yaml>`__).
 You may wish to override this if you have templates in different directories by adding ``files`` to the hook configuration in your ``.pre-commit-config.yaml`` file.
@@ -94,15 +101,28 @@ Pass a list of template files to format them:
 
 .. code-block:: console
 
-    $ djade --target-version 5.2 templates/engine.html
+    $ djade templates/engine.html
     1 file reformatted
 
-Djade can also upgrade some old template syntax.
-Add the ``--target-version`` option with your Django version as ``<major>.<minor>`` to enable applicable fixers:
+Djade can also upgrade some old template syntax, up to a target Django version, which may be specified with the ``--target-version`` option.
+When ``--target-version`` is not specified, Djade attempts to detect the target version from a ``pyproject.toml`` in the current directory.
+If found, it attempts to parse your current minimum-supported Django version from |project.dependencies|__, supporting formats like ``django>=5.2,<6.0``.
+When available, it reports:
+
+.. |project.dependencies| replace:: ``project.dependencies``
+__ https://packaging.python.org/en/latest/specifications/pyproject-toml/#dependencies-optional-dependencies
+
+.. code-block:: sh
+
+    $ django-upgrade example.py
+    Detected Django version from pyproject.toml: 6.0
+    1 file reformatted
+
+If this doesn’t work, no upgrade fixers are applied, unless you pass ``--target-version`` with a Django version formatted as ``<major>.<minor>``:
 
 .. code-block:: console
 
-    $ djade --target-version 5.2 templates/engine.html
+    $ djade --target-version 6.0 templates/engine.html
     1 file reformatted
 
 Djade does not have any ability to recurse through directories.
