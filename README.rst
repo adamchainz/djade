@@ -64,8 +64,8 @@ If this doesn’t work for you, specify your target version with the ``--target-
 
 .. code-block:: diff
 
-    -   id: djade
-    +   args: [--target-version, "5.2"]   # Replace with Django version
+     -   id: djade
+    +    args: [--target-version, "5.2"]   # Replace with Django version
 
 The separate repository (``djade-pre-commit``) enables installation without compiling the Rust code.
 
