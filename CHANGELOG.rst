@@ -4,6 +4,10 @@ Changelog
 
 * Drop Python 3.9 support.
 
+* Support Django 6.0 as a target version.
+
+  `PR #149 <https://github.com/adamchainz/djade/pull/149>`__.
+
 1.6.0 (2025-09-08)
 ------------------
 

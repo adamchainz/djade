@@ -18,7 +18,7 @@ pub struct Args {
         long,
         default_value = "auto",
         // Versions also need adding below
-        value_parser = ["auto", "2.1", "2.2", "3.0", "3.1", "3.2", "4.1", "4.2", "5.0", "5.1", "5.2"],
+        value_parser = ["auto", "2.1", "2.2", "3.0", "3.1", "3.2", "4.1", "4.2", "5.0", "5.1", "5.2", "6.0"],
         help = "The version of Django to target.",
     )]
     pub target_version: String,
