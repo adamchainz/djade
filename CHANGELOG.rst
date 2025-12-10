@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.7.0 (2025-12-10)
+------------------
+
 * Drop Python 3.9 support.
 
 * Support Django 6.0 as a target version.
