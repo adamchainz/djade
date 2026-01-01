@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Build
       run: cargo build --verbose
@@ -85,7 +85,7 @@ jobs:
         || 'unknown'
       }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - uses: actions/setup-python@v6
       with:
@@ -108,7 +108,7 @@ jobs:
 
     - run: ${{ (matrix.os == 'windows' && 'dir') || 'ls -lh' }} dist/
 
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       with:
         name: dist-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.manylinux || 'auto' }}
         path: dist
@@ -124,10 +124,10 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: get dist artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           merge-multiple: true
           pattern: dist-*
