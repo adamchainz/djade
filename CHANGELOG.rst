@@ -2,6 +2,10 @@
 Changelog
 =========
 
+* Stop shipping wheels for 32-bit Linux and Windows.
+
+  `PR #154 <https://github.com/adamchainz/djade/pull/154>`__.
+
 1.7.0 (2025-12-10)
 ------------------
 
