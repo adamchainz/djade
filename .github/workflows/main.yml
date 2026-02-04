@@ -50,8 +50,6 @@ jobs:
           - os: linux
             target: aarch64
           - os: linux
-            target: i686
-          - os: linux
             target: armv7
 
           # musllinux
@@ -71,9 +69,6 @@ jobs:
           # windows
           - os: windows
             target: x86_64
-          - os: windows
-            target: i686
-            python-architecture: x86
           - os: windows
             target: aarch64
 
