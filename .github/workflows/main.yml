@@ -74,18 +74,22 @@ jobs:
 
     runs-on:
       ${{
-        (matrix.os == 'linux' && 'ubuntu-24.04')
-        || (matrix.os == 'macos' && 'macos-15')
+        (matrix.os == 'linux' && matrix.target == 'aarch64' && 'ubuntu-24.04-arm')
+        || (matrix.os == 'linux' && matrix.target == 'armv7' && 'ubuntu-24.04-arm')
+        || (matrix.os == 'linux' && 'ubuntu-24.04')
+        || (matrix.os == 'macos' && matrix.target == 'aarch64' && 'macos-15')
+        || (matrix.os == 'macos' && matrix.target == 'x86_64' && 'macos-15-intel')
+        || (matrix.os == 'windows' && matrix.target == 'aarch64' && 'windows-11-arm')
         || (matrix.os == 'windows' && 'windows-2022')
         || 'unknown'
       }}
+
     steps:
     - uses: actions/checkout@v6
 
     - uses: actions/setup-python@v6
       with:
         python-version: '3.14'
-        architecture: ${{ matrix.python-architecture || 'x64' }}
 
     - name: Build sdist
       if: ${{ matrix.os == 'linux' && matrix.target == 'x86_64' }}
