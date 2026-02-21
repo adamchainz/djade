@@ -494,12 +494,11 @@ fn migrate_empty_json_script(tokens: &mut [Token], target_version: Option<(u8, u
         } = token
         {
             for filter in &mut filter_expression.filters {
-                if filter.name == "json_script" {
-                    if let Some(Expression::Constant(arg)) = &filter.arg {
-                        if arg == "\"\"" || arg == "''" {
-                            filter.arg = None;
-                        }
-                    }
+                if filter.name == "json_script"
+                    && let Some(Expression::Constant(arg)) = &filter.arg
+                    && (arg == "\"\"" || arg == "''")
+                {
+                    filter.arg = None;
                 }
             }
         }
@@ -560,10 +559,10 @@ fn migrate_ifequal_tags(tokens: &mut [Token], target_version: Option<(u8, u8)>) 
                     }
                 }
                 "endifequal" | "endifnotequal" => {
-                    if let Some(start) = stack.pop() {
-                        if bits.len() == 1 {
-                            pairs.push((start, i));
-                        }
+                    if let Some(start) = stack.pop()
+                        && bits.len() == 1
+                    {
+                        pairs.push((start, i));
                     }
                 }
                 _ => {}
@@ -579,30 +578,29 @@ fn migrate_ifequal_tags(tokens: &mut [Token], target_version: Option<(u8, u8)>) 
             }),
             Some(Token::Block { .. }),
         ) = (tokens.get(start), tokens.get(end))
+            && start_bits.len() >= 3
         {
-            if start_bits.len() >= 3 {
-                let comparison = if start_bits[0] == "ifequal" {
-                    "=="
-                } else {
-                    "!="
-                };
-                let var1 = start_bits[1].clone();
-                let var2 = start_bits[2].clone();
+            let comparison = if start_bits[0] == "ifequal" {
+                "=="
+            } else {
+                "!="
+            };
+            let var1 = start_bits[1].clone();
+            let var2 = start_bits[2].clone();
 
-                // Update start token
-                if let Token::Block { bits, .. } = &mut tokens[start] {
-                    bits.clear();
-                    bits.push("if".to_string());
-                    bits.push(var1);
-                    bits.push(comparison.to_string());
-                    bits.push(var2);
-                }
+            // Update start token
+            if let Token::Block { bits, .. } = &mut tokens[start] {
+                bits.clear();
+                bits.push("if".to_string());
+                bits.push(var1);
+                bits.push(comparison.to_string());
+                bits.push(var2);
+            }
 
-                // Update end token
-                if let Token::Block { bits, .. } = &mut tokens[end] {
-                    bits.clear();
-                    bits.push("endif".to_string());
-                }
+            // Update end token
+            if let Token::Block { bits, .. } = &mut tokens[end] {
+                bits.clear();
+                bits.push("endif".to_string());
             }
         }
     }
@@ -614,21 +612,21 @@ fn migrate_static_load_tags(tokens: &mut [Token], target_version: Option<(u8, u8
     }
 
     for token in tokens.iter_mut() {
-        if let Token::Block { bits, .. } = token {
-            if bits[0] == "load" {
-                if bits.contains(&"from".to_string()) {
-                    if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
-                        let last = bits.len() - 1;
-                        let library = bits[last].as_str();
-                        if library == "admin_static" || library == "staticfiles" {
-                            bits[last] = "static".to_string();
-                        }
+        if let Token::Block { bits, .. } = token
+            && bits[0] == "load"
+        {
+            if bits.contains(&"from".to_string()) {
+                if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
+                    let last = bits.len() - 1;
+                    let library = bits[last].as_str();
+                    if library == "admin_static" || library == "staticfiles" {
+                        bits[last] = "static".to_string();
                     }
-                } else {
-                    for bit in bits.iter_mut().skip(1) {
-                        if bit == "admin_static" || bit == "staticfiles" {
-                            *bit = "static".to_string();
-                        }
+                }
+            } else {
+                for bit in bits.iter_mut().skip(1) {
+                    if bit == "admin_static" || bit == "staticfiles" {
+                        *bit = "static".to_string();
                     }
                 }
             }
@@ -752,71 +750,71 @@ fn update_leading_trailing_whitespace(tokens: &mut Vec<Token>, newline: &str) {
 fn update_load_tags(tokens: &mut Vec<Token>) {
     let mut i = 0;
     while i < tokens.len() {
-        if let Token::Block { ref bits, .. } = tokens[i] {
-            if bits[0] == "load" {
-                // load ... from ...
-                if bits.contains(&"from".to_string()) {
-                    if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
-                        let library = bits[bits.len() - 1].as_str();
-                        let mut parts = bits[1..bits.len() - 2].to_vec();
-
-                        parts.sort_unstable();
-                        parts.dedup();
-                        parts.insert(0, "load".to_string());
-                        parts.push("from".to_string());
-                        parts.push(library.to_string());
-
-                        if let Token::Block { bits, .. } = &mut tokens[i] {
-                            bits.clear();
-                            bits.extend(parts);
-                        }
-                    }
-                // load ...
-                } else {
-                    let mut j = i + 1;
-                    let mut to_merge = vec![i];
-                    while j < tokens.len() {
-                        match &tokens[j] {
-                            Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
-                            Token::Block { bits, .. } if bits[0] == "load" => {
-                                if bits.contains(&"from".to_string()) {
-                                    break;
-                                }
-                                to_merge.push(j);
-                                j += 1
-                            }
-                            _ => break,
-                        }
-                    }
-                    if j > 0 {
-                        if let Token::Text { .. } = tokens[j - 1] {
-                            j -= 1;
-                        }
-                    }
-
-                    let mut parts: Vec<String> = to_merge
-                        .iter()
-                        .filter_map(|&idx| {
-                            if let Token::Block { bits, .. } = &tokens[idx] {
-                                Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
-                            } else {
-                                None
-                            }
-                        })
-                        .flatten()
-                        .collect();
+        if let Token::Block { ref bits, .. } = tokens[i]
+            && bits[0] == "load"
+        {
+            // load ... from ...
+            if bits.contains(&"from".to_string()) {
+                if bits.len() >= 4 && bits[bits.len() - 2] == "from" {
+                    let library = bits[bits.len() - 1].as_str();
+                    let mut parts = bits[1..bits.len() - 2].to_vec();
 
                     parts.sort_unstable();
                     parts.dedup();
                     parts.insert(0, "load".to_string());
+                    parts.push("from".to_string());
+                    parts.push(library.to_string());
 
                     if let Token::Block { bits, .. } = &mut tokens[i] {
                         bits.clear();
                         bits.extend(parts);
                     }
-
-                    tokens.drain(i + 1..j);
                 }
+            // load ...
+            } else {
+                let mut j = i + 1;
+                let mut to_merge = vec![i];
+                while j < tokens.len() {
+                    match &tokens[j] {
+                        Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
+                        Token::Block { bits, .. } if bits[0] == "load" => {
+                            if bits.contains(&"from".to_string()) {
+                                break;
+                            }
+                            to_merge.push(j);
+                            j += 1
+                        }
+                        _ => break,
+                    }
+                }
+                if j > 0
+                    && let Token::Text { .. } = tokens[j - 1]
+                {
+                    j -= 1;
+                }
+
+                let mut parts: Vec<String> = to_merge
+                    .iter()
+                    .filter_map(|&idx| {
+                        if let Token::Block { bits, .. } = &tokens[idx] {
+                            Some(bits.iter().skip(1).cloned().collect::<Vec<_>>())
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten()
+                    .collect();
+
+                parts.sort_unstable();
+                parts.dedup();
+                parts.insert(0, "load".to_string());
+
+                if let Token::Block { bits, .. } = &mut tokens[i] {
+                    bits.clear();
+                    bits.extend(parts);
+                }
+
+                tokens.drain(i + 1..j);
             }
         }
         i += 1;
@@ -851,13 +849,13 @@ fn update_endblock_labels(tokens: &mut [Token]) {
             }
             _ => None,
         };
-        if let Some(new_bits) = update {
-            if let Token::Block { lineno, .. } = tokens[i] {
-                tokens[i] = Token::Block {
-                    bits: new_bits,
-                    lineno,
-                };
-            }
+        if let Some(new_bits) = update
+            && let Token::Block { lineno, .. } = tokens[i]
+        {
+            tokens[i] = Token::Block {
+                bits: new_bits,
+                lineno,
+            };
         }
         i += 1;
     }
@@ -895,10 +893,10 @@ fn update_top_level_block_indentation(tokens: &mut [Token]) {
 static INDENTATION_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[ \t]+$\z").unwrap());
 
 fn unindent_token(tokens: &mut [Token], index: usize) {
-    if index > 0 {
-        if let Token::Text { contents, .. } = &mut tokens[index - 1] {
-            *contents = INDENTATION_LINE.replace_all(contents, "").to_string();
-        }
+    if index > 0
+        && let Token::Text { contents, .. } = &mut tokens[index - 1]
+    {
+        *contents = INDENTATION_LINE.replace_all(contents, "").to_string();
     }
 }
 
@@ -917,14 +915,12 @@ fn update_top_level_block_spacing(tokens: &mut [Token], newline: &str) {
                 }
                 "block" => {
                     if has_extends && depth == 0 {
-                        if let Some(last_end) = last_top_level_tag {
-                            if last_end == i - 2 {
-                                if let Token::Text { contents, .. } = &mut tokens[i - 1] {
-                                    if contents.trim().is_empty() {
-                                        *contents = format!("{}{}", newline, newline);
-                                    }
-                                }
-                            }
+                        if let Some(last_end) = last_top_level_tag
+                            && last_end == i - 2
+                            && let Token::Text { contents, .. } = &mut tokens[i - 1]
+                            && contents.trim().is_empty()
+                        {
+                            *contents = format!("{}{}", newline, newline);
                         }
                         last_top_level_tag = Some(i);
                     }
