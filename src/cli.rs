@@ -126,16 +126,15 @@ fn detect_version_from_pyproject_toml(path: &str) -> Option<Version> {
     let dependencies = config.get("project")?.get("dependencies")?.as_array()?;
 
     for dep in dependencies {
-        if let Some(dep_str) = dep.as_str() {
-            if let Some(version) = parse_django_dependency(dep_str) {
-                if SUPPORTED_TARGET_VERSIONS.contains(&version.as_tuple()) {
-                    eprintln!(
-                        "Detected Django version from pyproject.toml: {}.{}",
-                        version.major, version.minor
-                    );
-                    return Some(version);
-                }
-            }
+        if let Some(dep_str) = dep.as_str()
+            && let Some(version) = parse_django_dependency(dep_str)
+            && SUPPORTED_TARGET_VERSIONS.contains(&version.as_tuple())
+        {
+            eprintln!(
+                "Detected Django version from pyproject.toml: {}.{}",
+                version.major, version.minor
+            );
+            return Some(version);
         }
     }
 
