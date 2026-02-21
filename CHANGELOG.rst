@@ -2,6 +2,11 @@
 Changelog
 =========
 
+* Optimize internal string handling using copy-on-write semantics.
+  Benchmarked as providing a ~4% speedup on a medium-sized project.
+
+  `PR #159 <https://github.com/adamchainz/djade/pull/159>`__.
+
 * Stop shipping wheels for 32-bit Linux and Windows.
 
   `PR #154 <https://github.com/adamchainz/djade/pull/154>`__.
