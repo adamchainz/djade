@@ -2,6 +2,9 @@
 Changelog
 =========
 
+1.8.0 (2026-02-22)
+------------------
+
 * Optimize a few internals:
 
   * Make internal strings use copy-on-write semantics. (`PR #159 <https://github.com/adamchainz/djade/pull/159>`__.)
