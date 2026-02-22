@@ -722,16 +722,56 @@ fn migrate_assignments_blocktranslate_tag(bits: &mut Vec<Cow<'_, str>>) {
 
 // Formatters
 
-static LEADING_BLANK_LINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*\n)+").unwrap());
-
 fn update_leading_trailing_whitespace<'a>(tokens: &mut Vec<Token<'a>>, newline: &str) {
     if let Some(Token::Text { contents, .. }) = tokens.first_mut() {
-        *contents = Cow::Owned(LEADING_BLANK_LINES.replace(contents, "").into_owned());
+        let s = contents.as_ref();
+        let mut pos = 0;
+
+        loop {
+            let start = pos;
+            let chars = s[pos..].chars();
+
+            for c in chars {
+                if matches!(c, ' ' | '\t' | '\r') {
+                    pos += c.len_utf8();
+                } else {
+                    break;
+                }
+            }
+
+            if s[pos..].starts_with('\n') {
+                pos += 1;
+            } else {
+                pos = start;
+                break;
+            }
+        }
+
+        if pos > 0 {
+            *contents = Cow::Owned(s[pos..].to_string());
+        }
     }
 
     if let Some(mut token) = tokens.last_mut() {
         if let Token::Text { contents, .. } = &mut token {
-            *contents = Cow::Owned(format!("{}{}", contents.trim_end(), newline));
+            let s = contents.as_ref();
+            let mut end = s.len();
+
+            for (idx, c) in s.char_indices().rev() {
+                if matches!(c, ' ' | '\t' | '\r' | '\n') {
+                    end = idx;
+                } else {
+                    break;
+                }
+            }
+
+            let trimmed = &s[..end];
+            let remainder = &s[end..];
+            let already_correct = end == s.len() && newline.is_empty() || remainder == newline;
+
+            if !already_correct {
+                *contents = Cow::Owned(format!("{}{}", trimmed, newline));
+            }
         } else {
             tokens.push(Token::Text {
                 contents: Cow::Owned(newline.to_string()),
