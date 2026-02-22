@@ -6,6 +6,7 @@ Changelog
 
   * Make internal strings use copy-on-write semantics. (`PR #159 <https://github.com/adamchainz/djade/pull/159>`__.)
   * Avoid using a regular expression to trim leading blank lines. (`PR #160 <https://github.com/adamchainz/djade/pull/160>`__.)
+  * Skip translated string detection. (`PR #161 <https://github.com/adamchainz/djade/pull/161>`__.)
 
   Together, these changes have been benchmarked providing a ~7% speedup on a medium-sized project.
 

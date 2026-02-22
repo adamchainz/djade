@@ -353,7 +353,11 @@ fn split_contents<'a>(contents: &'a str) -> Vec<Cow<'a, str>> {
     let mut bits = smart_split(contents).into_iter();
 
     while let Some(bit) = bits.next() {
-        if bit.starts_with("_(\"") || bit.starts_with("_('") {
+        let mut chars = bit.chars();
+        if matches!(chars.next(), Some('_'))
+            && matches!(chars.next(), Some('('))
+            && matches!(chars.next(), Some('"' | '\''))
+        {
             let sentinel = format!("{})", &bit[2..3]);
             let mut trans_bit = vec![bit];
             while !trans_bit.last().unwrap().ends_with(&sentinel) {
