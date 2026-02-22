@@ -2,10 +2,12 @@
 Changelog
 =========
 
-* Optimize internal string handling using copy-on-write semantics.
-  Benchmarked as providing a ~4% speedup on a medium-sized project.
+* Optimize a few internals:
 
-  `PR #159 <https://github.com/adamchainz/djade/pull/159>`__.
+  * Make internal strings use copy-on-write semantics. (`PR #159 <https://github.com/adamchainz/djade/pull/159>`__.)
+  * Avoid using a regular expression to trim leading blank lines. (`PR #160 <https://github.com/adamchainz/djade/pull/160>`__.)
+
+  Together, these changes have been benchmarked providing a ~7% speedup on a medium-sized project.
 
 * Stop shipping wheels for 32-bit Linux and Windows.
 
