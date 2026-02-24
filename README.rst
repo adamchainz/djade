@@ -258,12 +258,28 @@ Extra rules:
     -{#choo choo#}
     +{# choo choo #}
 
+* Label ``{% endpartialdef %}`` tags that aren’t on the same line as their opening ``{% partialdef %}`` tag:
+
+  .. code-block:: diff
+
+    {% partialdef button %}
+    ...
+    -{% endpartialdef %}
+    +{% endpartialdef button %}
+
 * No labels in ``{% endblock %}`` tags on the same line as their opening ``{% block %}`` tag:
 
   .. code-block:: diff
 
     -{% block funnel %}...{% endblock funnel %}
     +{% block funnel %}...{% endblock %}
+
+* No labels in ``{% endpartialdef %}`` tags on the same line as their opening ``{% partialdef %}`` tag:
+
+  .. code-block:: diff
+
+    -{% partialdef whistle %}...{% endpartialdef whistle %}
+    +{% partialdef whistle %}...{% endpartialdef %}
 
 * Merge consecutive ``{% load %}`` tags:
 

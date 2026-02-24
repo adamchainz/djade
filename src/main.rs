@@ -396,7 +396,7 @@ fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
     // Formatters
     update_leading_trailing_whitespace(&mut tokens, newline);
     update_load_tags(&mut tokens);
-    update_endblock_labels(&mut tokens);
+    update_endblock_and_endpartialdef_labels(&mut tokens);
     update_top_level_block_indentation(&mut tokens);
     update_top_level_block_spacing(&mut tokens, newline);
 
@@ -862,8 +862,9 @@ fn update_load_tags<'a>(tokens: &mut Vec<Token<'a>>) {
     }
 }
 
-fn update_endblock_labels<'a>(tokens: &mut [Token<'a>]) {
+fn update_endblock_and_endpartialdef_labels<'a>(tokens: &mut [Token<'a>]) {
     let mut block_stack = Vec::new();
+    let mut partialdef_stack = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
         let update = match &tokens[i] {
@@ -880,6 +881,27 @@ fn update_endblock_labels<'a>(tokens: &mut [Token<'a>]) {
                             vec![Cow::Borrowed("endblock")]
                         } else {
                             vec![Cow::Borrowed("endblock"), label]
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Token::Block { bits, lineno } if bits[0] == "partialdef" => {
+                let label = bits.get(1).cloned();
+                partialdef_stack.push((label, *lineno));
+                None
+            }
+            Token::Block { bits, lineno } if bits[0] == "endpartialdef" => {
+                if let Some((Some(label), start_lineno)) = partialdef_stack.pop() {
+                    if bits.len() == 1 || (bits.len() == 2 && label == bits[1]) {
+                        let same_line = start_lineno == *lineno;
+                        Some(if same_line {
+                            vec![Cow::Borrowed("endpartialdef")]
+                        } else {
+                            vec![Cow::Borrowed("endpartialdef"), label]
                         })
                     } else {
                         None
@@ -1972,6 +1994,63 @@ dependencies = [
         assert_eq!(
             formatted,
             "{% block h %}\n{% blocktranslate %}ovo{% endblocktranslate %}\n{% endblock h %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_partialdef_no_label() {
+        let formatted = format("{% partialdef %}\n{% endpartialdef %}\n", None);
+        assert_eq!(formatted, "{% partialdef %}\n{% endpartialdef %}\n");
+    }
+
+    #[test]
+    fn test_format_endpartialdef_broken() {
+        let formatted = format("{% endpartialdef %}\n", None);
+        assert_eq!(formatted, "{% endpartialdef %}\n");
+    }
+
+    #[test]
+    fn test_format_endpartialdef_broken_nesting() {
+        let formatted = format("{% partialdef a %}\n{% endpartialdef b %}\n", None);
+        assert_eq!(formatted, "{% partialdef a %}\n{% endpartialdef b %}\n");
+    }
+
+    #[test]
+    fn test_format_endpartialdef_label_added() {
+        let formatted = format("{% partialdef button %}\n{% endpartialdef %}\n", None);
+        assert_eq!(
+            formatted,
+            "{% partialdef button %}\n{% endpartialdef button %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_endpartialdef_label_added_nested() {
+        let formatted = format(
+            "{% partialdef a %}\n{% partialdef b %}\n{% endpartialdef %}\n{% endpartialdef %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% partialdef a %}\n{% partialdef b %}\n{% endpartialdef b %}\n{% endpartialdef a %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_endpartialdef_label_removed() {
+        let formatted = format("{% partialdef button %}i{% endpartialdef button %}\n", None);
+        assert_eq!(formatted, "{% partialdef button %}i{% endpartialdef %}\n");
+    }
+
+    #[test]
+    fn test_format_block_and_partialdef_independent_stacks() {
+        let formatted = format(
+            "{% block a %}\n{% partialdef b %}\n{% endpartialdef %}\n{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% block a %}\n{% partialdef b %}\n{% endpartialdef b %}\n{% endblock a %}\n"
         );
     }
 
