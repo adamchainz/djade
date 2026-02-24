@@ -6,6 +6,11 @@ Changelog
 
   `PR #162 <https://github.com/adamchainz/djade/pull/162>`__.
 
+* Support parsing Django versions without a minor part from ``pyproject.toml``.
+  For example, ``django>=6`` will be parsed as for Django 6.0+.
+
+  `PR #164 <https://github.com/adamchainz/django-upgrade/pull/164>`__.
+
 1.8.0 (2026-02-22)
 ------------------
 

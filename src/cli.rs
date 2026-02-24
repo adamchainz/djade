@@ -58,14 +58,16 @@ static DJANGO_VERSION_RE: LazyLock<Regex> = LazyLock::new(|| {
         (?:==|~=|>=)
         \s*
         (?P<major>[0-9]+)
-        \.
-        (?P<minor>[0-9]+)
         (?:
-            (?:a|b|rc)
-            [0-9]+
-        |
-            \.
-            [0-9]+
+          \.
+          (?P<minor>[0-9]+)
+          (?:
+              (?:a|b|rc)
+              [0-9]+
+          |
+              \.
+              [0-9]+
+          )?
         )?
         (?:
             \s*,\s*
@@ -146,7 +148,11 @@ fn parse_django_dependency(dep_str: &str) -> Option<Version> {
     let captures = DJANGO_VERSION_RE.captures(&lowercase_dep)?;
 
     let major = captures.name("major")?.as_str().parse::<u8>().ok()?;
-    let minor = captures.name("minor")?.as_str().parse::<u8>().ok()?;
+    let minor = if let Some(minor_match) = captures.name("minor") {
+        minor_match.as_str().parse::<u8>().ok()?
+    } else {
+        0
+    };
 
     Some(Version::new(major, minor))
 }
@@ -242,6 +248,10 @@ mod tests {
         assert_eq!(
             parse_django_dependency("django>=4.2,<5.0"),
             Some(Version::new(4, 2))
+        );
+        assert_eq!(
+            parse_django_dependency("django[argon2]>=6,<6.1"),
+            Some(Version::new(6, 0))
         );
         assert_eq!(parse_django_dependency("requests>=2.0"), None);
         assert_eq!(parse_django_dependency("invalid"), None);
