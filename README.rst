@@ -262,10 +262,10 @@ Extra rules:
 
   .. code-block:: diff
 
-    {% partialdef button %}
+    {% partialdef whistle %}
     ...
     -{% endpartialdef %}
-    +{% endpartialdef button %}
+    +{% endpartialdef whistle %}
 
 * No labels in ``{% endblock %}`` tags on the same line as their opening ``{% block %}`` tag:
 
