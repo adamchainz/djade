@@ -636,7 +636,9 @@ fn migrate_static_load_tags(tokens: &mut [Token<'_>], target_version: Option<(u8
 
 fn migrate_assignments(tokens: &mut [Token<'_>]) {
     for token in tokens.iter_mut() {
-        if let Token::Block { bits, .. } = token {
+        if let Token::Block { bits, .. } = token
+            && bits.iter().any(|b| b == "as")
+        {
             match bits[0].as_ref() {
                 "with" => migrate_assignments_with_tag(bits),
                 "blocktrans" | "blocktranslate" => migrate_assignments_blocktranslate_tag(bits),
@@ -875,13 +877,11 @@ fn update_endblock_and_endpartialdef_labels<'a>(tokens: &mut [Token<'a>]) {
             }
             Token::Block { bits, lineno } if bits[0] == "endblock" => {
                 if let Some((Some(label), start_lineno)) = block_stack.pop() {
-                    if bits.len() == 1 || (bits.len() == 2 && label == bits[1]) {
-                        let same_line = start_lineno == *lineno;
-                        Some(if same_line {
-                            vec![Cow::Borrowed("endblock")]
-                        } else {
-                            vec![Cow::Borrowed("endblock"), label]
-                        })
+                    let same_line = start_lineno == *lineno;
+                    if same_line && bits.len() == 2 {
+                        Some(vec![Cow::Borrowed("endblock")])
+                    } else if !same_line && bits.len() == 1 {
+                        Some(vec![Cow::Borrowed("endblock"), label])
                     } else {
                         None
                     }
@@ -896,13 +896,11 @@ fn update_endblock_and_endpartialdef_labels<'a>(tokens: &mut [Token<'a>]) {
             }
             Token::Block { bits, lineno } if bits[0] == "endpartialdef" => {
                 if let Some((Some(label), start_lineno)) = partialdef_stack.pop() {
-                    if bits.len() == 1 || (bits.len() == 2 && label == bits[1]) {
-                        let same_line = start_lineno == *lineno;
-                        Some(if same_line {
-                            vec![Cow::Borrowed("endpartialdef")]
-                        } else {
-                            vec![Cow::Borrowed("endpartialdef"), label]
-                        })
+                    let same_line = start_lineno == *lineno;
+                    if same_line && bits.len() == 2 {
+                        Some(vec![Cow::Borrowed("endpartialdef")])
+                    } else if !same_line && bits.len() == 1 {
+                        Some(vec![Cow::Borrowed("endpartialdef"), label])
                     } else {
                         None
                     }
@@ -959,7 +957,10 @@ fn unindent_token<'a>(tokens: &mut [Token<'a>], index: usize) {
     if index > 0
         && let Token::Text { contents, .. } = &mut tokens[index - 1]
     {
-        *contents = Cow::Owned(INDENTATION_LINE.replace_all(contents, "").to_string());
+        let unindented = INDENTATION_LINE.replace_all(contents, "");
+        if unindented != *contents {
+            *contents = Cow::Owned(unindented.to_string());
+        }
     }
 }
 
@@ -983,7 +984,10 @@ fn update_top_level_block_spacing<'a>(tokens: &mut [Token<'a>], newline: &str) {
                             && let Token::Text { contents, .. } = &mut tokens[i - 1]
                             && contents.trim().is_empty()
                         {
-                            *contents = Cow::Owned(format!("{}{}", newline, newline));
+                            let double_newline = format!("{}{}", newline, newline);
+                            if contents.as_ref() != double_newline {
+                                *contents = Cow::Owned(double_newline);
+                            }
                         }
                         last_top_level_tag = Some(i);
                     }
