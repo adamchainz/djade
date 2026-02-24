@@ -2,6 +2,10 @@
 Changelog
 =========
 
+* Add/remove labels from ``endpartialdef`` tags based on the same rule as ``endblock``: no label when on the same line as the opening ``partialdef``, label when on another line.
+
+  `PR #162 <https://github.com/adamchainz/djade/pull/162>`__.
+
 1.8.0 (2026-02-22)
 ------------------
 
