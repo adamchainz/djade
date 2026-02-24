@@ -588,6 +588,7 @@ fn migrate_ifequal_tags(tokens: &mut [Token<'_>], target_version: Option<(u8, u8
             let var1 = start_bits[1].clone();
             let var2 = start_bits[2].clone();
 
+            // Update start token
             if let Token::Block { bits, .. } = &mut tokens[start] {
                 bits.clear();
                 bits.push(Cow::Borrowed("if"));
@@ -596,6 +597,7 @@ fn migrate_ifequal_tags(tokens: &mut [Token<'_>], target_version: Option<(u8, u8
                 bits.push(var2);
             }
 
+            // Update end token
             if let Token::Block { bits, .. } = &mut tokens[end] {
                 bits.clear();
                 bits.push(Cow::Borrowed("endif"));
