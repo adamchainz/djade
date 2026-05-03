@@ -2,6 +2,10 @@
 Changelog
 =========
 
+* Build with frame pointers enabled, preparation for `PEP 831 <https://peps.python.org/pep-0831/>`__.
+
+  `PR #172 <https://github.com/adamchainz/djade/issues/>`__.
+
 1.9.0 (2026-02-27)
 ------------------
 
