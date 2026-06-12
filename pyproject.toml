@@ -34,13 +34,13 @@ urls.Funding = "https://adamj.eu/books/"
 urls.Repository = "https://github.com/adamchainz/djade"
 
 [tool.maturin]
+module-name = "djade"
 bindings = "bin"
 manifest-path = "Cargo.toml"
-module-name = "djade"
-strip = true
 include = [
   "rust-toolchain.toml",
 ]
+strip = true
 
 [tool.pyproject-fmt]
 max_supported_python = "3.14"
