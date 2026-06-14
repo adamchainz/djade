@@ -2,6 +2,13 @@
 Changelog
 =========
 
+Pending
+-------
+
+* Support Django 6.1 as a target version.
+
+  `PR #177 <https://github.com/adamchainz/djade/pull/177>`__.
+
 * Build with frame pointers enabled, preparation for `PEP 831 <https://peps.python.org/pep-0831/>`__.
 
   `PR #172 <https://github.com/adamchainz/djade/issues/>`__.
