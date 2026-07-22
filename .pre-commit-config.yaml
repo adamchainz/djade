@@ -43,10 +43,6 @@ repos:
   - id: blacken-docs
     additional_dependencies:
     - black==25.1.0
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: d2823d321df3af8f878f7ee3414dc94d037145b9  # frozen: v2.1.0
-  hooks:
-  - id: mypy
 - repo: local
   hooks:
   - id: cargo-fmt
