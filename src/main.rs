@@ -522,17 +522,16 @@ fn migrate_translation_tags(tokens: &mut [Token<'_>], target_version: Option<(u8
                 "endblocktrans" => {
                     bits[0] = Cow::Borrowed("endblocktranslate");
                 }
-                "load" => {
+                "load"
                     if bits.len() >= 4
                         && bits[bits.len() - 2] == "from"
-                        && bits[bits.len() - 1] == "i18n"
-                    {
-                        for i in 1..bits.len() - 2 {
-                            if bits[i] == "trans" {
-                                bits[i] = Cow::Borrowed("translate");
-                            } else if bits[i] == "blocktrans" {
-                                bits[i] = Cow::Borrowed("blocktranslate");
-                            }
+                        && bits[bits.len() - 1] == "i18n" =>
+                {
+                    for i in 1..bits.len() - 2 {
+                        if bits[i] == "trans" {
+                            bits[i] = Cow::Borrowed("translate");
+                        } else if bits[i] == "blocktrans" {
+                            bits[i] = Cow::Borrowed("blocktranslate");
                         }
                     }
                 }
