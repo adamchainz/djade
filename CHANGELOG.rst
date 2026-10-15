@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Pending
--------
+1.10.0 (2026-10-15)
+-------------------
 
 * Drop Python 3.10 support.
 
