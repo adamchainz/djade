@@ -7,6 +7,8 @@ Pending
 
 * Drop Python 3.10 support.
 
+  `PR #188 <https://github.com/adamchainz/djade/pull/188>`__.
+
 * Support Django 6.1 as a target version.
 
   `PR #177 <https://github.com/adamchainz/djade/pull/177>`__.
