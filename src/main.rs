@@ -471,7 +471,7 @@ fn format_variable(filter_expression: FilterExpression, result: &mut String) {
 // Fixers
 
 static LENGTH_IS_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"([\w.]+)\|length_is:(\w+)").unwrap());
+    LazyLock::new(|| Regex::new(r"^([\w.]+)\|length_is:(\w+)$").unwrap());
 
 fn migrate_length_is(tokens: &mut [Token<'_>], target_version: Option<(u8, u8)>) {
     if target_version.is_none() || target_version.unwrap() < (4, 2) {
@@ -480,16 +480,39 @@ fn migrate_length_is(tokens: &mut [Token<'_>], target_version: Option<(u8, u8)>)
 
     for token in tokens.iter_mut() {
         if let Token::Block { bits, .. } = token {
-            if bits.len() != 2 {
+            if bits[0] != "if" && bits[0] != "elif" {
                 continue;
             }
-            if let Some(captures) = LENGTH_IS_RE.captures(bits[1].as_ref()) {
-                let var1 = captures.get(1).unwrap().as_str().to_string();
-                let var2 = captures.get(2).unwrap().as_str().to_string();
-                bits[1] = Cow::Owned(format!("{}|length", var1));
-                bits.push(Cow::Borrowed("=="));
-                bits.push(Cow::Owned(var2));
+            if !bits.iter().any(|bit| LENGTH_IS_RE.is_match(bit)) {
+                continue;
             }
+
+            let mut new_bits = Vec::with_capacity(bits.len() + 2);
+            for i in 0..bits.len() {
+                // Comparison operators bind tighter than 'and', 'or', and
+                // 'not', so the rewrite is only safe next to them.
+                let safe_before = i > 0
+                    && match bits[i - 1].as_ref() {
+                        "if" | "elif" | "and" | "or" => true,
+                        "not" => i < 2 || bits[i - 2] != "is",
+                        _ => false,
+                    };
+                let safe_after = i + 1 == bits.len() || bits[i + 1] == "and" || bits[i + 1] == "or";
+
+                if safe_before
+                    && safe_after
+                    && let Some(captures) = LENGTH_IS_RE.captures(bits[i].as_ref())
+                {
+                    let var1 = captures.get(1).unwrap().as_str();
+                    let var2 = captures.get(2).unwrap().as_str();
+                    new_bits.push(Cow::Owned(format!("{}|length", var1)));
+                    new_bits.push(Cow::Borrowed("=="));
+                    new_bits.push(Cow::Owned(var2.to_string()));
+                } else {
+                    new_bits.push(bits[i].clone());
+                }
+            }
+            *bits = new_bits;
         }
     }
 }
@@ -1292,12 +1315,117 @@ dependencies = [
     }
 
     #[test]
-    fn test_length_is_not_migrated_with_other_conditions() {
+    fn test_length_is_migrated_with_and() {
         let formatted = format(
             "{% if eggs|length_is:1 and spam %}{% endif %}\n",
             Some((4, 2)),
         );
-        assert_eq!(formatted, "{% if eggs|length_is:1 and spam %}{% endif %}\n");
+        assert_eq!(formatted, "{% if eggs|length == 1 and spam %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_migrated_after_and() {
+        let formatted = format(
+            "{% if spam and eggs|length_is:1 %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(formatted, "{% if spam and eggs|length == 1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_migrated_multiple() {
+        let formatted = format(
+            "{% if eggs|length_is:1 and spam|length_is:n %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if eggs|length == 1 and spam|length == n %}{% endif %}\n"
+        );
+    }
+
+    #[test]
+    fn test_length_is_migrated_with_or() {
+        let formatted = format(
+            "{% if spam or eggs|length_is:1 %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(formatted, "{% if spam or eggs|length == 1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_migrated_with_not() {
+        let formatted = format("{% if not eggs|length_is:1 %}{% endif %}\n", Some((4, 2)));
+        assert_eq!(formatted, "{% if not eggs|length == 1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_migrated_elif() {
+        let formatted = format(
+            "{% if spam %}{% elif eggs|length_is:1 and ham %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if spam %}{% elif eggs|length == 1 and ham %}{% endif %}\n"
+        );
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_with_comparison() {
+        let formatted = format(
+            "{% if eggs|length_is:1 == spam %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(formatted, "{% if eggs|length_is:1 == spam %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_after_comparison() {
+        let formatted = format(
+            "{% if spam != eggs|length_is:1 %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(formatted, "{% if spam != eggs|length_is:1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_after_is_not() {
+        let formatted = format(
+            "{% if spam is not eggs|length_is:1 %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if spam is not eggs|length_is:1 %}{% endif %}\n"
+        );
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_after_in() {
+        let formatted = format(
+            "{% if spam in eggs|length_is:1 %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(formatted, "{% if spam in eggs|length_is:1 %}{% endif %}\n");
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_with_further_filter() {
+        let formatted = format(
+            "{% if eggs|length_is:1|yesno:'a,' %}{% endif %}\n",
+            Some((4, 2)),
+        );
+        assert_eq!(
+            formatted,
+            "{% if eggs|length_is:1|yesno:'a,' %}{% endif %}\n"
+        );
+    }
+
+    #[test]
+    fn test_length_is_not_migrated_in_other_tag() {
+        let formatted = format("{% firstof eggs|length_is:1 %}\n", Some((4, 2)));
+        assert_eq!(formatted, "{% firstof eggs|length_is:1 %}\n");
     }
 
     // migrate_empty_json_script

@@ -11,6 +11,10 @@ Pending
 * Leave tags using Jinja’s whitespace control syntax unchanged, such as ``{%- if engine -%}``.
   Previously, Djade would mangle them into ``{% - if engine - %}``.
 
+* Extend the Django 4.2+ ``length_is`` fixer to rewrite usage combined with ``and``, ``or``, and ``not`` in ``{% if %}`` tags, and to support ``{% elif %}`` tags.
+  For example, ``{% if steam and engines|length_is:2 %}`` now becomes ``{% if steam and engines|length == 2 %}``.
+  The fixer also no longer rewrites ``length_is`` when followed by further filters, which previously dropped them.
+
 1.10.0 (2026-10-15)
 -------------------
 

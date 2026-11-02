@@ -336,12 +336,15 @@ From the `release note <https://docs.djangoproject.com/en/4.2/releases/4.2/#id1>
 
     The ``length_is`` template filter is deprecated in favor of ``length`` and the ``==`` operator within an ``{% if %}`` tag.
 
-Djade updates usage of the deprecated filter within ``if`` tags, without other conditions, appropriately:
+Djade updates usage of the deprecated filter within ``if`` and ``elif`` tags appropriately, where it is used alone or combined with ``and``, ``or``, or ``not``:
 
 .. code-block:: diff
 
     -{% if engines|length_is:1 %}
     +{% if engines|length == 1 %}
+
+    -{% if steam and engines|length_is:2 %}
+    +{% if steam and engines|length == 2 %}
 
 Django 4.1+: empty ID ``json_script`` fixer
 -------------------------------------------
