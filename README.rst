@@ -177,6 +177,9 @@ For example, whitespace is significant in some HTML contexts, such as in ``<pre>
 
 Djade leaves the contents of ``{% verbatim %}`` and ``{% comment %}`` tags unchanged, since Django does not interpret them as template syntax.
 
+Djade also leaves unchanged any tags using `Jinja’s whitespace control syntax <https://jinja.palletsprojects.com/en/stable/templates/#whitespace-control>`__, like ``{%- if engine -%}``, which Django does not support.
+This avoids mangling Jinja templates that Djade may be run on by mistake.
+
 Below are the rules that Djade implements.
 
 Rules from the Django style guide:

@@ -8,6 +8,9 @@ Pending
 * Leave the contents of ``{% comment %}`` tags unchanged, as with ``{% verbatim %}`` tags.
   Previously, Djade would format template syntax within them, and could be confused by commented-out tags, such as labelling an ``{% endblock %}`` with the name of a commented-out ``{% block %}``.
 
+* Leave tags using Jinja’s whitespace control syntax unchanged, such as ``{%- if engine -%}``.
+  Previously, Djade would mangle them into ``{% - if engine - %}``.
+
 1.10.0 (2026-10-15)
 -------------------
 

@@ -169,7 +169,7 @@ fn create_token<'a>(
     in_tag: bool,
     literal_until: &mut Option<String>,
 ) -> Token<'a> {
-    if in_tag {
+    if in_tag && !has_jinja_whitespace_control(token_string) {
         let content = token_string[2..token_string.len() - 2].trim();
         if token_string.starts_with(BLOCK_TAG_START) {
             if let Some(end) = &literal_until {
@@ -215,6 +215,14 @@ fn create_token<'a>(
             lineno,
         }
     }
+}
+
+/// Detect Jinja-style whitespace control, like `{%- if x -%}`, which Django
+/// does not support. Such tags are left unchanged, rather than mangled.
+fn has_jinja_whitespace_control(token_string: &str) -> bool {
+    let bytes = token_string.as_bytes();
+    bytes.len() >= 5
+        && (matches!(bytes[2], b'-' | b'+') || matches!(bytes[bytes.len() - 3], b'-' | b'+'))
 }
 
 // Expression lexer based on Django’s FilterExpression:
@@ -2358,6 +2366,30 @@ dependencies = [
             formatted,
             "{% extends 'egg.html' %}\n\n{% block yolk %}\n{% comment %}{% block white %}{% endcomment %}\n{% endblock yolk %}\n"
         );
+    }
+
+    #[test]
+    fn test_format_jinja_whitespace_control_left() {
+        let formatted = format(
+            "{%- if  a -%}{{- b -}}{%+ else +%}{#- c -#}{%-endif%}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{%- if  a -%}{{- b -}}{%+ else +%}{#- c -#}{%-endif%}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_jinja_whitespace_control_one_side_left() {
+        let formatted = format("{%- if  a %}{%  endif  -%}{{b}}\n", None);
+        assert_eq!(formatted, "{%- if  a %}{%  endif  -%}{{ b }}\n");
+    }
+
+    #[test]
+    fn test_format_negative_number_argument_formatted() {
+        let formatted = format("{{ a|add:-1 }}{%  if  a == -1  %}{% endif %}\n", None);
+        assert_eq!(formatted, "{{ a|add:-1 }}{% if a == -1 %}{% endif %}\n");
     }
 
     // format_variables
