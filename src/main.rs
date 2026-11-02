@@ -134,7 +134,7 @@ enum Token<'a> {
 
 fn lex<'a>(template_string: &'a str) -> Vec<Token<'a>> {
     let mut result = Vec::new();
-    let mut verbatim = None;
+    let mut literal_until = None;
     let mut lineno = 1;
     let mut last_end = 0;
 
@@ -144,12 +144,12 @@ fn lex<'a>(template_string: &'a str) -> Vec<Token<'a>> {
 
         if start > last_end {
             let text = &template_string[last_end..start];
-            result.push(create_token(text, lineno, false, &mut verbatim));
+            result.push(create_token(text, lineno, false, &mut literal_until));
             lineno += text.matches('\n').count();
         }
 
         let token_string = token_match.as_str();
-        result.push(create_token(token_string, lineno, true, &mut verbatim));
+        result.push(create_token(token_string, lineno, true, &mut literal_until));
         lineno += token_string.matches('\n').count();
 
         last_end = end;
@@ -157,7 +157,7 @@ fn lex<'a>(template_string: &'a str) -> Vec<Token<'a>> {
 
     if last_end < template_string.len() {
         let text = &template_string[last_end..];
-        result.push(create_token(text, lineno, false, &mut verbatim));
+        result.push(create_token(text, lineno, false, &mut literal_until));
     }
 
     result
@@ -167,27 +167,30 @@ fn create_token<'a>(
     token_string: &'a str,
     lineno: usize,
     in_tag: bool,
-    verbatim: &mut Option<String>,
+    literal_until: &mut Option<String>,
 ) -> Token<'a> {
     if in_tag {
         let content = token_string[2..token_string.len() - 2].trim();
         if token_string.starts_with(BLOCK_TAG_START) {
-            if let Some(v) = &verbatim {
-                if content != v {
+            if let Some(end) = &literal_until {
+                if content != end {
                     return Token::Text {
                         contents: Cow::Borrowed(token_string),
                         lineno,
                     };
                 }
-                *verbatim = None;
+                *literal_until = None;
             } else if content.starts_with("verbatim") {
-                *verbatim = Some(format!("end{}", content));
+                *literal_until = Some(format!("end{}", content));
+            } else if content.split_whitespace().next() == Some("comment") {
+                // Django skips everything up to the first {% endcomment %}.
+                *literal_until = Some("endcomment".to_string());
             }
             Token::Block {
                 bits: split_contents(content),
                 lineno,
             }
-        } else if verbatim.is_none() {
+        } else if literal_until.is_none() {
             if token_string.starts_with(VARIABLE_TAG_START) {
                 Token::Variable {
                     filter_expression: lex_filter_expression(content),
@@ -2306,6 +2309,54 @@ dependencies = [
         assert_eq!(
             formatted,
             "a {% verbatim %} {{var}} {%tag%} {#comment#} {% endverbatim %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_comment_tag_contents_left() {
+        let formatted = format(
+            "a {% comment %} {{var}} {%tag%} {#comment#} {% endcomment %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "a {% comment %} {{var}} {%tag%} {#comment#} {% endcomment %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_comment_tag_with_note_contents_left() {
+        let formatted = format(
+            "{%  comment  \"old\"  %}\n{% load  b a %}\n{%endcomment%}\n{{var}}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% comment \"old\" %}\n{% load  b a %}\n{% endcomment %}\n{{ var }}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_comment_tag_not_nested() {
+        let formatted = format(
+            "{% comment %}{% comment %}{{a}}{% endcomment %}{{b}}{% endcomment %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% comment %}{% comment %}{{a}}{% endcomment %}{{ b }}{% endcomment %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_commented_out_block_ignored() {
+        let formatted = format(
+            "{% extends 'egg.html' %}\n{% block yolk %}\n{% comment %}{% block white %}{% endcomment %}\n{% endblock %}\n",
+            None,
+        );
+        assert_eq!(
+            formatted,
+            "{% extends 'egg.html' %}\n\n{% block yolk %}\n{% comment %}{% block white %}{% endcomment %}\n{% endblock yolk %}\n"
         );
     }
 

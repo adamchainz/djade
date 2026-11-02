@@ -175,6 +175,8 @@ Djade does not aim to format the host language of templates (HTML, etc.).
 That is a much broader scope and hard to do without semantic changes.
 For example, whitespace is significant in some HTML contexts, such as in ``<pre>`` tags, so even adjusting indentation can affect the meaning.
 
+Djade leaves the contents of ``{% verbatim %}`` and ``{% comment %}`` tags unchanged, since Django does not interpret them as template syntax.
+
 Below are the rules that Djade implements.
 
 Rules from the Django style guide:
