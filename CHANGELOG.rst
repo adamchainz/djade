@@ -21,6 +21,9 @@ Pending
 * Fix newline detection for files with mixed newlines, where formatting a second time could change the final newline.
   Djade now detects the newline style ignoring leading blank lines and trailing whitespace, which it rewrites.
 
+* Fix variables starting with a filter, like ``{{ |lower }}``, which Django rejects, having their filters duplicated each time Djade ran.
+  They are now left unchanged.
+
 1.10.0 (2026-10-15)
 -------------------
 

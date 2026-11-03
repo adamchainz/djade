@@ -212,6 +212,12 @@ fn lex_filter_expression<'a>(expr: &'a str) -> FilterExpression<'a> {
                 filter_expression.var = Expression::Constant(Cow::Borrowed(constant.as_str()));
             } else if let Some(variable) = captures.name("var") {
                 filter_expression.var = Expression::Variable(Cow::Borrowed(variable.as_str()));
+            } else {
+                // Syntax error, starting with a filter - return whole expression
+                return FilterExpression {
+                    var: Expression::Unparsed(Cow::Borrowed(expr)),
+                    filters: Vec::new(),
+                };
             }
             variable = true;
         } else {
@@ -2270,6 +2276,12 @@ mod tests {
     }
 
     // format_variables
+
+    #[test]
+    fn test_format_variables_leading_filter_left() {
+        let formatted = format("{{| a |length_is:1}}{{ |b }}\n", None);
+        assert_eq!(formatted, "{{ | a |length_is:1 }}{{ |b }}\n");
+    }
 
     #[test]
     fn test_format_variables_constant_int() {
