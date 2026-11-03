@@ -18,6 +18,9 @@ Pending
 * Fix a crash on empty block tags, ``{% %}``.
   Empty block and variable tags, which Django rejects, are now left unchanged.
 
+* Fix newline detection for files with mixed newlines, where formatting a second time could change the final newline.
+  Djade now detects the newline style ignoring leading blank lines and trailing whitespace, which it rewrites.
+
 1.10.0 (2026-10-15)
 -------------------
 

@@ -346,9 +346,39 @@ pub fn format(content: &str, target_version: Option<(u8, u8)>) -> String {
 }
 
 fn detect_newline(content: &str) -> &str {
+    // Prefer newlines outside of leading blank lines and trailing whitespace,
+    // which are rewritten, so the result is the same when formatting again.
+    let kept =
+        content[leading_blank_lines_len(content)..].trim_end_matches([' ', '\t', '\r', '\n']);
+    let content = if kept.contains('\n') { kept } else { content };
     match content.split_once('\n') {
         Some((s, _)) if s.ends_with('\r') => "\r\n",
         _ => "\n",
+    }
+}
+
+/// Length of the blank lines at the start of `s`, which may contain spaces,
+/// tabs, and carriage returns.
+fn leading_blank_lines_len(s: &str) -> usize {
+    let mut pos = 0;
+
+    loop {
+        let start = pos;
+        let chars = s[pos..].chars();
+
+        for c in chars {
+            if matches!(c, ' ' | '\t' | '\r') {
+                pos += c.len_utf8();
+            } else {
+                break;
+            }
+        }
+
+        if s[pos..].starts_with('\n') {
+            pos += 1;
+        } else {
+            return start;
+        }
     }
 }
 
@@ -673,27 +703,7 @@ fn migrate_assignments_blocktranslate_tag(bits: &mut Vec<Cow<'_, str>>) {
 fn update_leading_trailing_whitespace<'a>(tokens: &mut Vec<Token<'a>>, newline: &str) {
     if let Some(Token::Text { contents, .. }) = tokens.first_mut() {
         let s = contents.as_ref();
-        let mut pos = 0;
-
-        loop {
-            let start = pos;
-            let chars = s[pos..].chars();
-
-            for c in chars {
-                if matches!(c, ' ' | '\t' | '\r') {
-                    pos += c.len_utf8();
-                } else {
-                    break;
-                }
-            }
-
-            if s[pos..].starts_with('\n') {
-                pos += 1;
-            } else {
-                pos = start;
-                break;
-            }
-        }
+        let pos = leading_blank_lines_len(s);
 
         if pos > 0 {
             *contents = Cow::Owned(s[pos..].to_string());
@@ -965,6 +975,31 @@ mod tests {
     #[test]
     fn test_detect_newline_with_line_feed_first() {
         assert_eq!(detect_newline("foo\nbar\r\n"), "\n");
+    }
+
+    #[test]
+    fn test_detect_newline_ignores_leading_blank_lines() {
+        assert_eq!(detect_newline("\n{% a %}\r\nb"), "\r\n");
+        assert_eq!(detect_newline(" \r\n\t\na\nb"), "\n");
+    }
+
+    #[test]
+    fn test_detect_newline_ignores_trailing_whitespace() {
+        assert_eq!(detect_newline("a\r\nb\n"), "\r\n");
+        assert_eq!(detect_newline("\r\na\nb \r\n"), "\n");
+    }
+
+    #[test]
+    fn test_detect_newline_only_leading_blank_lines() {
+        assert_eq!(detect_newline("\r\na"), "\r\n");
+        assert_eq!(detect_newline("\na"), "\n");
+    }
+
+    #[test]
+    fn test_format_mixed_newlines_idempotent() {
+        let formatted = format("\n{% a %}\r\nb", None);
+        assert_eq!(formatted, "{% a %}\r\nb\r\n");
+        assert_eq!(format(&formatted, None), formatted);
     }
 
     // Fixers
