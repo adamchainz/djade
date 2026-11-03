@@ -683,17 +683,12 @@ fn migrate_assignments_blocktranslate_tag(bits: &mut Vec<Cow<'_, str>>) {
                 found_count = true;
                 new_bits.push(Cow::Borrowed("count"));
                 i += 1;
-                if i < bits.len() {
-                    if i + 2 < bits.len() && bits[i + 1] == "as" {
-                        // Legacy format: "value as count"
-                        new_bits.push(Cow::Owned(format!("{}={}", bits[i + 2], bits[i])));
-                        i += 2;
-                    } else if bits[i].contains('=') {
-                        // Modern format: "key=value"
-                        new_bits.push(bits[i].clone());
-                    }
+                if i + 2 < bits.len() && bits[i + 1] == "as" {
+                    // Legacy format: "value as count"
+                    new_bits.push(Cow::Owned(format!("{}={}", bits[i + 2], bits[i])));
+                    i += 3;
                 }
-                i += 1;
+                // Otherwise, leave following bits, like "key=value", as-is.
             }
             _ => {
                 new_bits.push(bits[i].clone());
@@ -1696,6 +1691,18 @@ mod tests {
             formatted,
             "{% blocktranslate with name=engine.name context 'greeting' %}Hello {{ name }}{% endblocktranslate %}\n"
         );
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_count_unknown_kept() {
+        let formatted = format("{% blocktrans count {{ with a=b %}\n", None);
+        assert_eq!(formatted, "{% blocktrans count {{ with a=b %}\n");
+    }
+
+    #[test]
+    fn test_migrate_assignments_blocktranslate_count_then_with() {
+        let formatted = format("{% blocktrans count with a as b %}\n", None);
+        assert_eq!(formatted, "{% blocktrans count with b=a %}\n");
     }
 
     // Formatters

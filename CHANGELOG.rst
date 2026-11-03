@@ -27,6 +27,8 @@ Pending
 * Leave ``{% load %}`` tags containing quotes, which are invalid, unchanged.
   Previously, sorting them could move quotes, so formatting again would produce different output.
 
+* Fix the legacy assignment fixer for ``{% blocktranslate %}`` tags dropping the bit after ``count`` when it was not an assignment.
+
 1.10.0 (2026-10-15)
 -------------------
 
