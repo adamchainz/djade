@@ -15,6 +15,9 @@ Pending
   For example, ``{% if steam and engines|length_is:2 %}`` now becomes ``{% if steam and engines|length == 2 %}``.
   The fixer also no longer rewrites ``length_is`` when followed by further filters, which previously dropped them.
 
+* Fix a crash on empty block tags, ``{% %}``.
+  Empty block and variable tags, which Django rejects, are now left unchanged.
+
 1.10.0 (2026-10-15)
 -------------------
 

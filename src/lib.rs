@@ -71,6 +71,13 @@ fn create_token<'a>(
 ) -> Token<'a> {
     if in_tag && !has_jinja_whitespace_control(token_string) {
         let content = token_string[2..token_string.len() - 2].trim();
+        if content.is_empty() && !token_string.starts_with(COMMENT_TAG_START) {
+            // Django rejects empty block and variable tags, so leave them.
+            return Token::Text {
+                contents: Cow::Borrowed(token_string),
+                lineno,
+            };
+        }
         if token_string.starts_with(BLOCK_TAG_START) {
             if let Some(end) = &literal_until {
                 if content != end {
@@ -2183,6 +2190,24 @@ mod tests {
             formatted,
             "{% extends 'egg.html' %}\n\n{% block yolk %}\n{% comment %}{% block white %}{% endcomment %}\n{% endblock yolk %}\n"
         );
+    }
+
+    #[test]
+    fn test_format_empty_block_tags_left() {
+        let formatted = format(
+            "{% %}{%%}{% extends 'egg.html' %}\n{%  %}\n{% load b a %}{% %}\n",
+            Some((6, 1)),
+        );
+        assert_eq!(
+            formatted,
+            "{% %}{%%}{% extends 'egg.html' %}\n{%  %}\n{% load a b %}{% %}\n"
+        );
+    }
+
+    #[test]
+    fn test_format_empty_variable_tags_left() {
+        let formatted = format("{{}}{{  }}{{a}}\n", None);
+        assert_eq!(formatted, "{{}}{{  }}{{ a }}\n");
     }
 
     #[test]
