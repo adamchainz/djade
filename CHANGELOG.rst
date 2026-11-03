@@ -24,6 +24,9 @@ Pending
 * Fix variables starting with a filter, like ``{{ |lower }}``, which Django rejects, having their filters duplicated each time Djade ran.
   They are now left unchanged.
 
+* Leave ``{% load %}`` tags containing quotes, which are invalid, unchanged.
+  Previously, sorting them could move quotes, so formatting again would produce different output.
+
 1.10.0 (2026-10-15)
 -------------------
 

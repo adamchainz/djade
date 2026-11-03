@@ -745,11 +745,18 @@ fn update_leading_trailing_whitespace<'a>(tokens: &mut Vec<Token<'a>>, newline: 
     }
 }
 
+/// Library and tag names never contain quotes, so leave load tags with them,
+/// since reordering their bits could change how they split.
+fn has_quotes(bits: &[Cow<'_, str>]) -> bool {
+    bits.iter().any(|b| b.contains(['"', '\'']))
+}
+
 fn update_load_tags<'a>(tokens: &mut Vec<Token<'a>>) {
     let mut i = 0;
     while i < tokens.len() {
         if let Token::Block { ref bits, .. } = tokens[i]
             && bits[0] == "load"
+            && !has_quotes(bits)
         {
             // load ... from ...
             if bits.iter().any(|b| b == "from") {
@@ -776,7 +783,7 @@ fn update_load_tags<'a>(tokens: &mut Vec<Token<'a>>) {
                     match &tokens[j] {
                         Token::Text { contents, .. } if contents.trim().is_empty() => j += 1,
                         Token::Block { bits, .. } if bits[0] == "load" => {
-                            if bits.iter().any(|b| b == "from") {
+                            if bits.iter().any(|b| b == "from") || has_quotes(bits) {
                                 break;
                             }
                             to_merge.push(j);
@@ -1818,6 +1825,18 @@ mod tests {
     fn test_format_load_trailing_empty_lines_left() {
         let formatted = format("{% load albumen %}\n\n{% albu %}\n", None);
         assert_eq!(formatted, "{% load albumen %}\n\n{% albu %}\n");
+    }
+
+    #[test]
+    fn test_update_load_tags_quotes_left() {
+        let formatted = format("{% load b \" a %}\n{% load d c %}\n", None);
+        assert_eq!(formatted, "{% load b \" a %}\n{% load c d %}\n");
+    }
+
+    #[test]
+    fn test_update_load_tags_from_quotes_left() {
+        let formatted = format("{% load b ' a from c %}\n", None);
+        assert_eq!(formatted, "{% load b ' a from c %}\n");
     }
 
     // update_endblock_labels
