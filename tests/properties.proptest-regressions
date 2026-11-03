@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc f430e07065438a96ca4b0d97a52bd6e2427b33d0f198cbc3f085f28945b16b9e # shrinks to input = "\n{%\r\n%}"
+cc b54fc3c13197952899983e919176b04cd0b71dad33dad0d5ee035c572c354ed5 # shrinks to input = "{{| a |length_is:1}}"
+cc 42eb488e679e5bfdff670794b8191d5c3b777e1dd563391e7009912dabae740d # shrinks to input = "{%load |json_script:\"\" \"%}"
+cc 53d68e89e8766cef8d35233f2a01bb78cc43c3945fe3af1bbaaa1210e7997e86 # shrinks to input = "{%blocktrans as count {{ with%}"
